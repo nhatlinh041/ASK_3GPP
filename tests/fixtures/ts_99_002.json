@@ -1,0 +1,31 @@
+{
+  "metadata": {
+    "specification_id": "ts_99_002",
+    "version": "18.0.0",
+    "title": "3GPP TS 99.002 — Test Spec Two",
+    "release": "Rel-18"
+  },
+  "export_info": {},
+  "chunks": [
+    {
+      "chunk_id": "ts_99_002_1",
+      "section_id": "1",
+      "section_title": "Scope",
+      "content": "This spec extends TS 99.001 and defines the UPF.",
+      "chunk_type": "definition",
+      "cross_references": {"internal": [], "external": []},
+      "content_metadata": {"key_terms": ["UPF"]},
+      "tables": []
+    },
+    {
+      "chunk_id": "ts_99_002_2",
+      "section_id": "2",
+      "section_title": "Architecture",
+      "content": "UPF handles user plane traffic.",
+      "chunk_type": "general",
+      "cross_references": {"internal": [], "external": []},
+      "content_metadata": {"key_terms": ["UPF"]},
+      "tables": []
+    }
+  ]
+}

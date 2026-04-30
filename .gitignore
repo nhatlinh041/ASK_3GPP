@@ -1,0 +1,151 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+.Python
+build/
+dist/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+parts/
+sdist/
+var/
+wheels/
+*.manifest
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Testing & coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# Type checkers
+.mypy_cache/
+.dmypy.json
+.pyre/
+.pytype/
+.ruff_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# ===== Node.js =====
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# Frontend build outputs
+frontend/dist/
+frontend/build/
+frontend/.vite/
+backend/dist/
+backend/build/
+
+# ===== Môi trường & bí mật =====
+.env*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# ===== IDE / Editor =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ===== Logs =====
+logs/
+*.log
+# Cho phép run.log trong benchmark dirs (file tóm tắt nhỏ ~8KB).
+# debug.log vẫn bị block bởi *.log ở trên (10MB–365MB mỗi file).
+!**/run.log
+
+# ===== Benchmark output (giữ analysis/results, bỏ debug.log nặng) =====
+# debug.log đã bị *.log catch, nhưng thêm explicit để rõ intent.
+tests/benchmark/results/
+
+# ===== Dữ liệu lớn (3GPP pipeline) =====
+# DOCX gốc và dữ liệu trung gian — không nên commit, dung lượng lớn
+document_processing/data/
+document_processing/*.docx
+document_processing/*.json
+
+# JSON đã chunk — output của pipeline, có thể tái tạo
+3GPP_JSON_DOC/
+processed_json_v*/
+
+# Model & embedding cache
+*.bin
+*.pt
+*.pth
+*.onnx
+*.safetensors
+.cache/
+models_cache/
+
+# Neo4j dump / backup
+*.dump
+neo4j_data/
+
+# ===== Tài liệu / báo cáo cá nhân =====
+bao_cao_do_an/
+.md/
+
+# ===== Docker images locally cached =====
+docker_img/
+
+# ===== Cloudflared =====
+*.cloudflared.json
+.cloudflared/
+# File config sinh từ template, chứa tunnel UUID + credentials path.
+# Commit file template (cloudflared-demo.template.yml) thay thế.
+cloudflared-demo.yml
+
+# ===== Claude Code (local) =====
+.claude/
+CLAUDE.local.md
+
+# ===== TeleQnA benchmark data (lớn, có thể tái tạo) =====
+tele_qna/
+tele_qna.ipynb
+tele_qna_test.json
+
+# ===== File làm việc tạm ở repo root =====
+fix_new.json
+*.tmp
+*.bak
+*.orig
+
+# ===== OS / archive =====
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar

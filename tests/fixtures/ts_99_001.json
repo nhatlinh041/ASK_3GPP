@@ -1,0 +1,59 @@
+{
+  "metadata": {
+    "specification_id": "ts_99_001",
+    "version": "18.0.0",
+    "title": "3GPP TS 99.001 — Test Spec One",
+    "release": "Rel-18"
+  },
+  "export_info": {"total_chunks": 4},
+  "chunks": [
+    {
+      "chunk_id": "ts_99_001_1",
+      "section_id": "1",
+      "section_title": "Scope",
+      "content": "This test specification defines the AMF and SMF interfaces for testing.",
+      "chunk_type": "definition",
+      "cross_references": {
+        "internal": [],
+        "external": [
+          {"target_spec": "ts_99_002", "ref_type": "spec", "ref_id": "", "confidence": 0.9}
+        ]
+      },
+      "content_metadata": {"key_terms": ["AMF", "SMF"]},
+      "tables": []
+    },
+    {
+      "chunk_id": "ts_99_001_2",
+      "section_id": "2",
+      "section_title": "Abbreviations",
+      "content": "For the purposes of the present document, the abbreviations apply.\nAMF\tAccess and Mobility Management Function\nSMF\tSession Management Function\nNRF\tNetwork Repository Function\nUE\tUser Equipment\n",
+      "chunk_type": "abbreviation",
+      "cross_references": {"internal": [], "external": []},
+      "content_metadata": {"key_terms": ["AMF", "SMF", "NRF", "UE"]},
+      "tables": []
+    },
+    {
+      "chunk_id": "ts_99_001_3",
+      "section_id": "3",
+      "section_title": "Procedure",
+      "content": "Step 1: UE registers with AMF. Step 2: AMF queries NRF. See clause 3.1 for details.",
+      "chunk_type": "procedure",
+      "cross_references": {
+        "internal": [{"ref_type": "clause", "ref_id": "3.1"}],
+        "external": []
+      },
+      "content_metadata": {"key_terms": ["UE", "AMF", "NRF"]},
+      "tables": []
+    },
+    {
+      "chunk_id": "ts_99_001_4",
+      "section_id": "3.1",
+      "section_title": "Detailed registration flow",
+      "content": "The detailed registration message exchange between UE and AMF.",
+      "chunk_type": "procedure",
+      "cross_references": {"internal": [], "external": []},
+      "content_metadata": {"key_terms": ["UE", "AMF"]},
+      "tables": []
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "name": "3gpp-qa-demo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "predev": "bash scripts/start-deps.sh",
+    "dev": "concurrently --kill-others-on-fail --names \"rag,react,cf\" --prefix-colors \"cyan,magenta,blue\" \"npm run dev:rag\" \"npm run dev:frontend\" \"npm run dev:tunnel\"",
+    "dev:rag": "cd rag-engine && /home/linguyen/3GPP/.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --reload",
+    "dev:frontend": "cd frontend && npm run dev",
+    "predev:tunnel": "bash scripts/gen-cloudflared.sh",
+    "dev:tunnel": "cloudflared tunnel --config cloudflared-demo.yml run",
+    "test": "pytest tests/",
+    "test:kg": "pytest tests/test_kg_builder.py -v",
+    "test:embed": "pytest tests/test_embedder.py -v",
+    "rebuild-kg": "bash scripts/rebuild-kg.sh full",
+    "rebuild-kg:kg-only": "bash scripts/rebuild-kg.sh kg-only",
+    "rebuild-kg:embed-only": "bash scripts/rebuild-kg.sh embed-only",
+    "stop": "bash scripts/stop.sh",
+    "install:all": "npm install && cd frontend && npm install",
+    "install:python": "pip install fastapi uvicorn python-dotenv sentence-transformers neo4j requests"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1"
+  }
+}
