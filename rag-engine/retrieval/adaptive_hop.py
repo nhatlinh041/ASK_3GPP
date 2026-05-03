@@ -144,6 +144,7 @@ class AdaptiveHopSearcher:
         resolved_terms: Optional[dict] = None,
         prior_chunks: Optional[list[dict]] = None,
         think: bool = True,
+        model: Optional[str] = None,
     ) -> Iterator[dict]:
         """
         Run the ReAct loop and yield events. The final `hop_finish` event carries
@@ -159,6 +160,9 @@ class AdaptiveHopSearcher:
         if prior_chunks:
             state.seed_prior(prior_chunks)
 
+        # Single-model run: planner + Cypher gen use the request's model when
+        # provided, else fall back to the construction-time default.
+        active_model = model or self._planner_model
         t0 = time.monotonic()
 
         # --- Phase 0: research planning (KG-aware, tool-using) --------------
@@ -207,7 +211,7 @@ class AdaptiveHopSearcher:
             r_thinking_parts: list[str] = []
             try:
                 for ev in self._llm.generate_stream_full(
-                    r_prompt, model=self._planner_model, think=think
+                    r_prompt, model=active_model, think=think
                 ):
                     if ev["kind"] == "thinking":
                         r_thinking_parts.append(ev["token"])
@@ -399,7 +403,7 @@ class AdaptiveHopSearcher:
             thinking_parts: list[str] = []
             try:
                 for ev in self._llm.generate_stream_full(
-                    prompt, model=self._planner_model, think=think
+                    prompt, model=active_model, think=think
                 ):
                     if ev["kind"] == "thinking":
                         thinking_parts.append(ev["token"])

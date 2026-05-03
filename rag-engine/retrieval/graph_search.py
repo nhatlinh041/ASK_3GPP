@@ -90,6 +90,8 @@ class GraphSearcher:
         resolved_terms: Optional[dict] = None,
         top_k: int = 10,
         think: bool = True,
+        vector_hints: Optional[list[dict]] = None,
+        model: Optional[str] = None,
     ) -> Iterator[dict]:
         """
         Yield progress events for the graph step. Caller (orchestrator) forwards them
@@ -103,14 +105,19 @@ class GraphSearcher:
         """
         schema_text = self._schema.as_text()
 
+        # Single-model run: Cypher gen uses the same model as the answer stage
+        # by default, falling back to the generator's construction-time default
+        # only when the caller didn't specify (e.g. legacy tests).
+        cypher_model = model or self._generator._model
         input_payload = {
             "query": query,
             "intent": intent,
             "primary_term": term,
             "resolved_terms": resolved_terms or {},
             "schema": schema_text,
-            "model": self._generator._model,
+            "model": cypher_model,
             "top_k": top_k,
+            "vector_hints": vector_hints or [],
         }
         yield {"stage": "graph_start", "data": {"input": input_payload}}
 
@@ -127,6 +134,8 @@ class GraphSearcher:
             resolved_terms=resolved_terms,
             primary_term=term,
             think=think,
+            vector_hints=vector_hints,
+            model=cypher_model,
         ):
             kind = event["kind"]
             if kind == "prompt":

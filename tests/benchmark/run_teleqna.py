@@ -119,6 +119,38 @@ class CategoryStats:
     graph_search_errors: int = 0
 
 
+# Markdown decoration the LLM may sprinkle around an Answer: prefix
+# (e.g. "**Answer:** B", "*Answer*: B", "### Answer: B"). Strip these
+# before regex-matching so the patterns below don't have to know about them.
+_MD_DECORATION = re.compile(r"[*_`#>]+")
+
+# Phrases the model emits when it explicitly declines to answer. When any of
+# these appear inside an "Answer: ..." prefix we treat that as a refusal —
+# the fuzzy fallback would otherwise pick a random-looking choice from prose
+# context and report a false positive. Matched case-insensitively.
+_REFUSAL_PATTERNS = (
+    re.compile(r"\bcontext\s+does\s+not\s+(?:cover|specify|include|provide|address|mention|contain)\b", re.IGNORECASE),
+    re.compile(r"\bnone\s+of\s+the\s+(?:options|choices|answers)\b", re.IGNORECASE),
+    re.compile(r"\bcannot\s+(?:be\s+)?(?:determined|determine)\b", re.IGNORECASE),
+    re.compile(r"\binsufficient\s+(?:context|information)\b", re.IGNORECASE),
+)
+
+
+def _is_refusal(text: str) -> bool:
+    """True when the response is an explicit "I cannot answer" reply.
+
+    Triggers only when the refusal phrase appears in the FIRST line (i.e. as
+    the LLM's headline answer), not when it shows up later as part of a
+    citation or justification.
+    """
+    if not text:
+        return False
+    head = text.split("\n", 1)[0]
+    # Also accept "Answer: <refusal phrase>" as a refusal regardless of
+    # whether the phrase reaches into line 2.
+    return any(p.search(head) for p in _REFUSAL_PATTERNS)
+
+
 # ---------------------------------------------------------------------------
 # MCQ extraction — ported and adapted from parent's regex priority chain.
 # Returns 0-based choice index (matches dataset convention) or None.
@@ -127,31 +159,40 @@ def extract_choice(response: str, choices: list[str]) -> Optional[int]:
     if not response:
         return None
     text = response.strip()
+    # Strip markdown decoration (*, _, `, #, >) so patterns matching at line
+    # start work for "**Answer:** B", "### Answer: B", etc.
+    cleaned = _MD_DECORATION.sub("", text).strip()
     n = len(choices)
 
     # 1. "Answer: <number>" — handles (1)/(2)/... and 1/2/...
-    m = re.match(r"^\s*(?:the\s+)?answer[:\s]+\(?\s*(\d+)\s*\)?", text, re.IGNORECASE)
+    m = re.match(r"^\s*(?:the\s+)?answer[:\s]+\(?\s*(\d+)\s*\)?", cleaned, re.IGNORECASE)
     if m:
         idx = int(m.group(1)) - 1  # convert 1-based reply → 0-based
         if 0 <= idx < n:
             return idx
 
     # 2. "Answer: A/B/C/..."
-    m = re.match(r"^\s*(?:the\s+)?answer[:\s]+([A-Za-z])\b", text, re.IGNORECASE)
+    m = re.match(r"^\s*(?:the\s+)?answer[:\s]+([A-Za-z])\b", cleaned, re.IGNORECASE)
     if m:
         idx = ord(m.group(1).upper()) - ord("A")
         if 0 <= idx < n:
             return idx
 
+    # If the model explicitly refused at the top of the reply, stop here.
+    # The fuzzy fallback (steps 6-7) would otherwise hallucinate a choice
+    # from incidental keyword overlap with the question text.
+    if _is_refusal(cleaned):
+        return None
+
     # 3. "answer is N" / "answer: N" anywhere
-    m = re.search(r"\banswer\s*(?:is)?\s*[:=]?\s*\(?\s*(\d+)\s*\)?", text, re.IGNORECASE)
+    m = re.search(r"\banswer\s*(?:is)?\s*[:=]?\s*\(?\s*(\d+)\s*\)?", cleaned, re.IGNORECASE)
     if m:
         idx = int(m.group(1)) - 1
         if 0 <= idx < n:
             return idx
 
     # 4. "answer is X" letter form anywhere
-    m = re.search(r"\banswer\s*(?:is)?\s*[:=]?\s*([A-Za-z])\b", text, re.IGNORECASE)
+    m = re.search(r"\banswer\s*(?:is)?\s*[:=]?\s*([A-Za-z])\b", cleaned, re.IGNORECASE)
     if m:
         idx = ord(m.group(1).upper()) - ord("A")
         if 0 <= idx < n:
@@ -160,20 +201,31 @@ def extract_choice(response: str, choices: list[str]) -> Optional[int]:
     # 5. "X. <text>" at start of a line — model may default to letter without "Answer:"
     for i in range(n):
         letter = chr(ord("A") + i)
-        if re.search(rf"(^|\n)\s*{letter}\s*[\.\):]", text, re.IGNORECASE):
+        if re.search(rf"(^|\n)\s*{letter}\s*[\.\):]", cleaned, re.IGNORECASE):
             return i
 
-    # 6. Verbatim choice text — first occurrence wins
-    text_lower = text.lower()
-    first_pos = len(text)
+    # 6. Verbatim choice text — first occurrence wins. Word-boundary anchored
+    # so short choices like "Class A" don't false-positive inside compound
+    # words ("Class A" matches "class addresses" without \b).
+    text_lower = cleaned.lower()
+    first_pos = len(cleaned)
     first_idx: Optional[int] = None
     for i, choice in enumerate(choices):
         choice_clean = choice.strip().lower()
         if len(choice_clean) < 6:
             continue   # skip very short choices (e.g. numbers) — high false-positive
-        pos = text_lower.find(choice_clean)
-        if 0 <= pos < first_pos:
-            first_pos = pos
+        try:
+            m = re.search(rf"\b{re.escape(choice_clean)}\b", text_lower)
+        except re.error:
+            # Fallback to substring if escape produces an invalid pattern (rare)
+            pos = text_lower.find(choice_clean)
+            m = None
+            if 0 <= pos < first_pos:
+                first_pos = pos
+                first_idx = i
+            continue
+        if m and m.start() < first_pos:
+            first_pos = m.start()
             first_idx = i
     if first_idx is not None:
         return first_idx

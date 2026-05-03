@@ -147,6 +147,7 @@ class RAGOrchestrator:
                 resolved_terms=resolved,
                 prior_chunks=None,
                 think=think,
+                model=model,
             ):
                 if ev.get("stage") == "hop_research_done":
                     research_gaps = (ev.get("data") or {}).get("gaps") or []
@@ -176,6 +177,14 @@ class RAGOrchestrator:
                 "count": len(vec_results),
                 "top": _chunks_to_preview(vec_results),
             }}
+            # Pass top-3 vector hits as anchors for the Cypher generator —
+            # only title + spec_id, NOT content (keeps graph scoring independent
+            # of vector scoring; mitigates Pattern C over-firing when vector
+            # already found a real section anchor).
+            vector_hints = [
+                {"section": v.get("section", "?"), "spec_id": v.get("spec_id", "?")}
+                for v in vec_results[:3]
+            ]
             graph_chunks: list[dict] = []
             for ev in self._graph.search_streaming(
                 question,
@@ -184,6 +193,11 @@ class RAGOrchestrator:
                 resolved_terms=resolved,
                 top_k=TOP_K_GRAPH,
                 think=think,
+                vector_hints=vector_hints,
+                # Single-model run: Cypher gen uses the SAME model as the answer
+                # stage so Ollama keeps one set of weights resident the whole
+                # query. Avoids 15-30s load/unload thrash per question.
+                model=model,
             ):
                 if ev.get("stage") == "retrieval_graph":
                     data = ev.get("data") or {}
@@ -219,10 +233,10 @@ class RAGOrchestrator:
             },
             "output": {
                 "count": len(reranked),
-                "top": _chunks_to_preview(reranked, score_key="rerank_score"),
+                "top": _chunks_to_preview(reranked, score_key="final_score"),
             },
             "count": len(reranked),
-            "top": _chunks_to_preview(reranked, score_key="rerank_score"),
+            "top": _chunks_to_preview(reranked, score_key="final_score"),
         }}
 
         # Step 4: build prompt + stream LLM answer
@@ -256,7 +270,10 @@ class RAGOrchestrator:
                 "section": c.get("section", "?"),
                 "chunk_id": c.get("chunk_id"),
                 "content": c.get("content", ""),
-                "score": c.get("rerank_score"),
+                # Surface both the blended final_score (sort key) and the raw
+                # cross-encoder logit (for debugging) so trail UI can show either.
+                "score": c.get("final_score"),
+                "rerank_score": c.get("rerank_score"),
                 "picked_for_gap": c.get("picked_for_gap"),
             }
             for c in reranked

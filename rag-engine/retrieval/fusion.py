@@ -1,18 +1,27 @@
 """
-Result fusion: Reciprocal Rank Fusion (RRF) + cross-encoder reranking.
+Result fusion: Reciprocal Rank Fusion (RRF) + cross-encoder reranking with
+score blending (Phase C, second iteration).
 
 Both stages dedup by normalised chunk_id so the KG-ingestion artefact where
 `ts_23.288_4.1` and `ts_23_288_4.1` are stored as two separate nodes for the
 same logical chunk doesn't burn slots in the final top_k.
 
-`rerank` filters out chunks whose cross-encoder score falls below
-`min_score` (default 0.0) — a negative score from the cross-encoder is the
-model saying "this chunk is irrelevant to the query". Including such chunks
-in the answer prompt encourages the LLM to fabricate from off-topic content.
-When all candidates are negatively scored, the rerank returns an empty list,
-which lets the answer prompt's grounding rule fire ("Context does not cover
-…") instead of forcing a hallucinated answer.
+Rerank blends cross-encoder logits with upstream signals (Pattern A canonical
+score, vector cosine) so chunks promoted by graph anchors are not silently
+demoted by a cross-encoder that prefers keyword-dense but off-topic chunks.
+Canonical chunks (upstream score == 1.0 from `section_title CONTAINS full_name`)
+get a SOFT floor bypass: they survive cross-encoder logits in the range
+`[floor - CANONICAL_FLOOR_DELTA, floor)` (i.e. the cross-encoder is uncertain),
+but strongly-negative logits below that drop them like any other chunk.
+
+This second iteration removed the reserved-slot mechanism and tightened the
+floor bypass after benchmark debug showed the original Phase C was over-firing
+on Pattern B regex matches against short identifiers (`SA`, `N6`, `UE`):
+multiple unrelated sections with section_title CONTAINS the identifier all
+got upstream=1.0, all bypassed the floor with logit ≪ 0, and dominated the
+answer context — costing 4 regressions on the 80-question benchmark.
 """
+import math
 import os
 
 from models import get_reranker_model
@@ -23,6 +32,35 @@ from models import get_reranker_model
 # Override via env if you want to keep marginally-negative chunks (e.g. for
 # eval where you want to see what the model produces from weak evidence).
 _DEFAULT_MIN_SCORE = float(os.getenv("RERANK_MIN_SCORE", "0.0"))
+
+# Score blending weights (Phase C). Tunable via env. Defaults chosen so the
+# cross-encoder remains the dominant signal but Pattern A canonical matches
+# (upstream=1.0 from section_title CONTAINS full_name) get enough weight to
+# beat keyword-dense but off-topic chunks.
+_BLEND_ALPHA = float(os.getenv("RERANK_BLEND_ALPHA", "0.6"))       # cross-encoder sigmoid weight
+_BLEND_BETA = float(os.getenv("RERANK_UPSTREAM_BETA", "0.3"))      # upstream score weight (Pattern A / vector cosine)
+_BLEND_GAMMA = float(os.getenv("RERANK_CANONICAL_GAMMA", "0.15"))  # canonical match bonus
+# Strict 1.0 — vector cosine can climb to 0.95+ but is never exactly 1.0,
+# so this guarantees canonical bonus only fires for Pattern A/B exact matches.
+_CANONICAL_THRESHOLD = float(os.getenv("RERANK_CANONICAL_THRESHOLD", "1.0"))
+# Cap how negative a cross-encoder logit may be before we drop a canonical
+# chunk too. The original Phase C bypassed the floor entirely for canonical
+# chunks (Pattern A/B `score = 1.0`), but Pattern B regex on short identifiers
+# (`SA`, `N6`, `S1`, `UE`) over-matches: the KG returns 5+ unrelated sections
+# with section_title CONTAINS the identifier, all upstream=1.0, all logit ≪ 0,
+# all surviving the bypass. They poisoned answer context. Cap = floor - 2.0
+# means canonical chunks survive only when the cross-encoder is "uncertain"
+# (logit ∈ [−2, 0)); strongly-negative logits (< −2) drop them like the rest.
+_CANONICAL_FLOOR_DELTA = float(os.getenv("RERANK_CANONICAL_FLOOR_DELTA", "2.0"))
+
+
+# Numerically stable sigmoid for cross-encoder logits in [-30, 30] range.
+def _sigmoid(x: float) -> float:
+    if x > 30.0:
+        return 1.0
+    if x < -30.0:
+        return 0.0
+    return 1.0 / (1.0 + math.exp(-x))
 
 
 # Normalise a chunk_id so logical duplicates (KG produced `ts_23.288_4.1` and
@@ -159,20 +197,29 @@ def rerank_per_gap(
             selected.append(c)
             selected_keys.add(key)
 
-    # Final ordering: by rerank_score. Note this score is whatever the LAST
-    # rerank pass left on the chunk (the overall-question pass), since we
-    # mutate in place — that's intentional, gives a consistent ranking for
-    # display.
-    selected.sort(key=lambda c: c.get("rerank_score") or 0.0, reverse=True)
+    # Final ordering: by final_score (Phase C blended). Note this score is
+    # whatever the LAST rerank pass left on the chunk (the overall-question
+    # pass), since we mutate in place — that's intentional, gives a consistent
+    # ranking for display.
+    selected.sort(key=lambda c: c.get("final_score") or 0.0, reverse=True)
     return selected
 
 
 # Run a single rerank pass: dedup-by-normalised-chunk_id, score with the
-# cross-encoder, drop chunks with score < min_score, return top_k.
+# cross-encoder, drop chunks below the (per-class) floor, blend the raw logit
+# with upstream signals, sort by blended `final_score`.
 #
-# Returns NEW dict objects (shallow copies of input + rerank_score). Avoids
-# mutating input chunks so multiple per-gap passes in `rerank_per_gap` don't
-# cascade-overwrite each other's scores on the same dicts.
+# Two floors apply:
+#   - Non-canonical chunks: dropped if logit < floor (default 0.0).
+#   - Canonical chunks (upstream >= 1.0): dropped if logit < floor - CANONICAL_FLOOR_DELTA.
+# The wider band for canonical lets a "the cross-encoder is uncertain" call
+# tilt toward the graph anchor; the lower bound prevents Pattern B regex
+# over-matches (multiple irrelevant sections that happen to contain a short
+# identifier) from poisoning top_k.
+#
+# Returns NEW dict objects (shallow copies of input + rerank_score + final_score).
+# Avoids mutating input chunks so multiple per-gap passes in `rerank_per_gap`
+# don't cascade-overwrite each other's scores on the same dicts.
 def _rerank_with_dedup(
     query: str,
     chunks: list[dict],
@@ -182,6 +229,7 @@ def _rerank_with_dedup(
     if not chunks:
         return []
     floor = _DEFAULT_MIN_SCORE if min_score is None else min_score
+    canonical_floor = floor - _CANONICAL_FLOOR_DELTA
 
     # Dedup input: when two chunks share a normalised chunk_id, keep the first.
     seen: set[str] = set()
@@ -197,14 +245,27 @@ def _rerank_with_dedup(
     pairs = [(query, c.get("content") or "") for c in deduped]
     scores = model.predict(pairs).tolist()
 
-    # Build new dicts with rerank_score; drop those below floor. Cross-encoder
-    # negative scores mean "irrelevant" — keeping them encourages fabrication.
+    # Phase C blend with tightened floor bypass.
     rescored: list[dict] = []
     for c, s in zip(deduped, scores):
-        score = float(s)
-        if score < floor:
+        rerank_logit = float(s)
+        upstream = float(c.get("score") or 0.0)
+        is_canonical = upstream >= _CANONICAL_THRESHOLD
+        # Per-class floor: canonical band is wider but still bounded.
+        effective_floor = canonical_floor if is_canonical else floor
+        if rerank_logit < effective_floor:
             continue
-        rescored.append({**c, "rerank_score": score})
+        canonical = 1.0 if is_canonical else 0.0
+        final = (
+            _BLEND_ALPHA * _sigmoid(rerank_logit)
+            + _BLEND_BETA * upstream
+            + _BLEND_GAMMA * canonical
+        )
+        rescored.append({
+            **c,
+            "rerank_score": rerank_logit,  # raw logit kept for debug / observability
+            "final_score": final,           # blended score is the sort key
+        })
 
-    rescored.sort(key=lambda c: c["rerank_score"], reverse=True)
+    rescored.sort(key=lambda c: c["final_score"], reverse=True)
     return rescored[:top_k]
