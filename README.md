@@ -111,6 +111,21 @@ npm run test:embed                                # chỉ embedder
 pytest tests/test_kg_builder.py::test_xyz -v      # 1 test
 ```
 
+## Benchmark Results
+
+[TeleQnA Benchmark](tests/benchmark/500question_qwen3/) — 400 câu hỏi (loại Research publications) trên 4 category.
+
+**Overall: 76.0% (304/400) | Model: qwen3:14b | Mode: fixed | Avg latency: 5566 ms**
+
+| Category                 | Questions | Correct | Accuracy   |
+|--------------------------|:---------:|:-------:|:----------:|
+| Lexicon                  | 100       | 87      | **87.00%** |
+| Standards specifications | 100       | 76      | 76.00%     |
+| Research overview        | 100       | 73      | 73.00%     |
+| Standards overview       | 100       | 68      | 68.00%     |
+
+Graph search succeeded: 313/400 (78.2%) — không có graph search error.
+
 ## Thư mục chính
 
 ```

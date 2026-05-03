@@ -1,0 +1,443 @@
+Loading benchmark from /home/linguyen/ASK_3GPP/tele_qna/tele_qna_test.json
+Will run 400 question(s) across 5 category(ies)
+Mode=fixed  Model=qwen3:14b  Think=False
+Output dir: /home/linguyen/ASK_3GPP/tests/benchmark/results/phaseC2_500question_qwen3
+
+============================================================
+Category: Lexicon  (100 questions)
+============================================================
+  [  1] ✓ Lexicon            pred=3 gold=3 (5.5s, 0 src)  acc=1.000
+  [  2] ✓ Lexicon            pred=2 gold=2 (5.2s, 0 src)  acc=1.000
+  [  3] ✓ Lexicon            pred=2 gold=2 (5.2s, 0 src)  acc=1.000
+  [  4] ✓ Lexicon            pred=0 gold=0 (5.5s, 6 src)  acc=1.000
+  [  5] ✗ Lexicon            pred=1 gold=0 (5.7s, 0 src)  acc=0.800
+  [  6] ✓ Lexicon            pred=4 gold=4 (5.1s, 0 src)  acc=0.833
+  [  7] ✗ Lexicon            pred=4 gold=2 (4.8s, 1 src)  acc=0.714
+  [  8] ✓ Lexicon            pred=2 gold=2 (5.1s, 0 src)  acc=0.750
+  [  9] ✓ Lexicon            pred=4 gold=4 (6.7s, 2 src)  acc=0.778
+  [ 10] ✗ Lexicon            pred=4 gold=0 (5.5s, 0 src)  acc=0.700
+  [ 11] ✓ Lexicon            pred=3 gold=3 (5.5s, 5 src)  acc=0.727
+  [ 12] ✓ Lexicon            pred=1 gold=1 (4.9s, 0 src)  acc=0.750
+  [ 13] ✗ Lexicon            pred=2 gold=3 (5.4s, 0 src)  acc=0.692
+  [ 14] ✓ Lexicon            pred=3 gold=3 (5.9s, 5 src)  acc=0.714
+  [ 15] ✓ Lexicon            pred=2 gold=2 (5.4s, 1 src)  acc=0.733
+  [ 16] ✓ Lexicon            pred=1 gold=1 (6.6s, 6 src)  acc=0.750
+  [ 17] ✓ Lexicon            pred=3 gold=3 (5.9s, 0 src)  acc=0.765
+  [ 18] ✓ Lexicon            pred=1 gold=1 (5.3s, 0 src)  acc=0.778
+  [ 19] ✓ Lexicon            pred=1 gold=1 (5.5s, 1 src)  acc=0.789
+  [ 20] ✓ Lexicon            pred=1 gold=1 (4.9s, 0 src)  acc=0.800
+  [ 21] ✓ Lexicon            pred=0 gold=0 (5.2s, 0 src)  acc=0.810
+  [ 22] ✓ Lexicon            pred=1 gold=1 (6.5s, 6 src)  acc=0.818
+  [ 23] ✓ Lexicon            pred=2 gold=2 (4.9s, 0 src)  acc=0.826
+  [ 24] ✓ Lexicon            pred=0 gold=0 (5.6s, 0 src)  acc=0.833
+  [ 25] ✓ Lexicon            pred=2 gold=2 (5.6s, 0 src)  acc=0.840
+  [ 26] ✓ Lexicon            pred=2 gold=2 (7.0s, 6 src)  acc=0.846
+  [ 27] ✓ Lexicon            pred=1 gold=1 (5.2s, 0 src)  acc=0.852
+  [ 28] ✓ Lexicon            pred=1 gold=1 (5.4s, 0 src)  acc=0.857
+  [ 29] ✓ Lexicon            pred=2 gold=2 (5.7s, 0 src)  acc=0.862
+  [ 30] ✓ Lexicon            pred=0 gold=0 (6.5s, 5 src)  acc=0.867
+  [ 31] ✓ Lexicon            pred=2 gold=2 (4.8s, 0 src)  acc=0.871
+  [ 32] ✗ Lexicon            pred=1 gold=2 (5.4s, 1 src)  acc=0.844
+  [ 33] ✓ Lexicon            pred=3 gold=3 (5.3s, 0 src)  acc=0.848
+  [ 34] ✓ Lexicon            pred=3 gold=3 (6.8s, 3 src)  acc=0.853
+  [ 35] ✓ Lexicon            pred=3 gold=3 (6.5s, 2 src)  acc=0.857
+  [ 36] ✓ Lexicon            pred=3 gold=3 (5.1s, 0 src)  acc=0.861
+  [ 37] ✓ Lexicon            pred=4 gold=4 (5.6s, 2 src)  acc=0.865
+  [ 38] ✓ Lexicon            pred=2 gold=2 (5.9s, 4 src)  acc=0.868
+  [ 39] ✓ Lexicon            pred=1 gold=1 (5.3s, 0 src)  acc=0.872
+  [ 40] ✓ Lexicon            pred=0 gold=0 (5.1s, 1 src)  acc=0.875
+  [ 41] ✓ Lexicon            pred=4 gold=4 (5.3s, 0 src)  acc=0.878
+  [ 42] ✓ Lexicon            pred=0 gold=0 (5.0s, 0 src)  acc=0.881
+  [ 43] ✗ Lexicon            pred=3 gold=1 (5.4s, 0 src)  acc=0.860
+  [ 44] ✓ Lexicon            pred=1 gold=1 (6.1s, 6 src)  acc=0.864
+  [ 45] ✓ Lexicon            pred=1 gold=1 (5.3s, 0 src)  acc=0.867
+  [ 46] ✓ Lexicon            pred=1 gold=1 (5.6s, 0 src)  acc=0.870
+  [ 47] ✓ Lexicon            pred=3 gold=3 (5.6s, 0 src)  acc=0.872
+  [ 48] ✓ Lexicon            pred=2 gold=2 (5.1s, 6 src)  acc=0.875
+  [ 49] ✓ Lexicon            pred=0 gold=0 (5.9s, 6 src)  acc=0.878
+  [ 50] ✓ Lexicon            pred=4 gold=4 (5.6s, 0 src)  acc=0.880
+  [ 51] ✓ Lexicon            pred=2 gold=2 (6.1s, 4 src)  acc=0.882
+  [ 52] ✓ Lexicon            pred=0 gold=0 (5.2s, 0 src)  acc=0.885
+  [ 53] ✓ Lexicon            pred=3 gold=3 (4.9s, 1 src)  acc=0.887
+  [ 54] ✓ Lexicon            pred=3 gold=3 (5.1s, 0 src)  acc=0.889
+  [ 55] ✗ Lexicon            pred=3 gold=1 (4.8s, 0 src)  acc=0.873
+  [ 56] ✗ Lexicon            pred=2 gold=3 (6.0s, 3 src)  acc=0.857
+  [ 57] ✓ Lexicon            pred=4 gold=4 (5.9s, 0 src)  acc=0.860
+  [ 58] ✓ Lexicon            pred=0 gold=0 (5.5s, 6 src)  acc=0.862
+  [ 59] ✓ Lexicon            pred=1 gold=1 (5.5s, 3 src)  acc=0.864
+  [ 60] ✓ Lexicon            pred=0 gold=0 (5.3s, 1 src)  acc=0.867
+  [ 61] ✓ Lexicon            pred=1 gold=1 (5.7s, 2 src)  acc=0.869
+  [ 62] ✓ Lexicon            pred=2 gold=2 (5.2s, 0 src)  acc=0.871
+  [ 63] ✓ Lexicon            pred=2 gold=2 (5.2s, 0 src)  acc=0.873
+  [ 64] ✓ Lexicon            pred=1 gold=1 (5.4s, 6 src)  acc=0.875
+  [ 65] ✓ Lexicon            pred=2 gold=2 (5.9s, 0 src)  acc=0.877
+  [ 66] ✓ Lexicon            pred=2 gold=2 (5.6s, 1 src)  acc=0.879
+  [ 67] ✓ Lexicon            pred=1 gold=1 (5.3s, 0 src)  acc=0.881
+  [ 68] ✓ Lexicon            pred=1 gold=1 (5.6s, 6 src)  acc=0.882
+  [ 69] ✓ Lexicon            pred=2 gold=2 (5.1s, 0 src)  acc=0.884
+  [ 70] ✓ Lexicon            pred=3 gold=3 (4.5s, 0 src)  acc=0.886
+  [ 71] ✓ Lexicon            pred=1 gold=1 (4.5s, 0 src)  acc=0.887
+  [ 72] ✓ Lexicon            pred=0 gold=0 (6.6s, 6 src)  acc=0.889
+  [ 73] ✗ Lexicon            pred=1 gold=4 (5.1s, 0 src)  acc=0.877
+  [ 74] ✓ Lexicon            pred=1 gold=1 (5.5s, 0 src)  acc=0.878
+  [ 75] ✓ Lexicon            pred=2 gold=2 (5.1s, 0 src)  acc=0.880
+  [ 76] ✓ Lexicon            pred=2 gold=2 (5.1s, 6 src)  acc=0.882
+  [ 77] ✓ Lexicon            pred=3 gold=3 (6.5s, 2 src)  acc=0.883
+  [ 78] ✓ Lexicon            pred=2 gold=2 (6.1s, 1 src)  acc=0.885
+  [ 79] ✗ Lexicon            pred=4 gold=2 (5.8s, 1 src)  acc=0.873
+  [ 80] ✓ Lexicon            pred=0 gold=0 (6.5s, 2 src)  acc=0.875
+  [ 81] ✓ Lexicon            pred=1 gold=1 (5.2s, 0 src)  acc=0.877
+  [ 82] ✓ Lexicon            pred=4 gold=4 (7.3s, 6 src)  acc=0.878
+  [ 83] ✓ Lexicon            pred=2 gold=2 (4.7s, 0 src)  acc=0.880
+  [ 84] ✓ Lexicon            pred=3 gold=3 (6.2s, 1 src)  acc=0.881
+  [ 85] ✓ Lexicon            pred=3 gold=3 (4.9s, 4 src)  acc=0.882
+  [ 86] ✓ Lexicon            pred=2 gold=2 (7.6s, 6 src)  acc=0.884
+  [ 87] ✓ Lexicon            pred=4 gold=4 (6.5s, 4 src)  acc=0.885
+  [ 88] ✓ Lexicon            pred=2 gold=2 (4.9s, 0 src)  acc=0.886
+  [ 89] ✓ Lexicon            pred=3 gold=3 (5.9s, 3 src)  acc=0.888
+  [ 90] ✓ Lexicon            pred=2 gold=2 (5.3s, 0 src)  acc=0.889
+  [ 91] ✗ Lexicon            pred=1 gold=0 (5.6s, 1 src)  acc=0.879
+  [ 92] ✓ Lexicon            pred=1 gold=1 (4.5s, 1 src)  acc=0.880
+  [ 93] ✗ Lexicon            pred=3 gold=0 (5.9s, 5 src)  acc=0.871
+  [ 94] ✓ Lexicon            pred=0 gold=0 (5.3s, 0 src)  acc=0.872
+  [ 95] ✓ Lexicon            pred=3 gold=3 (4.8s, 4 src)  acc=0.874
+  [ 96] ✓ Lexicon            pred=1 gold=1 (4.8s, 1 src)  acc=0.875
+  [ 97] ✓ Lexicon            pred=2 gold=2 (5.4s, 5 src)  acc=0.876
+  [ 98] ✗ Lexicon            pred=3 gold=4 (6.6s, 6 src)  acc=0.867
+  [ 99] ✓ Lexicon            pred=2 gold=2 (5.6s, 0 src)  acc=0.869
+  [100] ✓ Lexicon            pred=0 gold=0 (8.2s, 5 src)  acc=0.870
+
+============================================================
+Category: Research overview  (100 questions)
+============================================================
+  [101] ✗ Research overview  pred=2 gold=1 (4.7s, 0 src)  acc=0.861
+  [102] ✗ Research overview  pred=0 gold=3 (6.0s, 1 src)  acc=0.853
+  [103] ✓ Research overview  pred=2 gold=2 (4.6s, 0 src)  acc=0.854
+  [104] ✓ Research overview  pred=4 gold=4 (2.7s, 0 src)  acc=0.856
+  [105] ✓ Research overview  pred=3 gold=3 (6.1s, 0 src)  acc=0.857
+  [106] ✓ Research overview  pred=3 gold=3 (5.9s, 0 src)  acc=0.858
+  [107] ✓ Research overview  pred=2 gold=2 (5.3s, 0 src)  acc=0.860
+  [108] ✗ Research overview  pred=1 gold=0 (5.1s, 0 src)  acc=0.852
+  [109] ✗ Research overview  pred=0 gold=4 (5.5s, 0 src)  acc=0.844
+  [110] ✗ Research overview  pred=3 gold=0 (5.0s, 0 src)  acc=0.836
+  [111] ✗ Research overview  pred=2 gold=3 (5.2s, 1 src)  acc=0.829
+  [112] ✓ Research overview  pred=4 gold=4 (5.0s, 0 src)  acc=0.830
+  [113] ✓ Research overview  pred=4 gold=4 (5.1s, 0 src)  acc=0.832
+  [114] ✓ Research overview  pred=0 gold=0 (5.3s, 0 src)  acc=0.833
+  [115] ✓ Research overview  pred=0 gold=0 (4.5s, 0 src)  acc=0.835
+  [116] ✓ Research overview  pred=2 gold=2 (4.8s, 0 src)  acc=0.836
+  [117] ✗ Research overview  pred=3 gold=4 (6.2s, 1 src)  acc=0.829
+  [118] ✓ Research overview  pred=0 gold=0 (5.0s, 0 src)  acc=0.831
+  [119] ✗ Research overview  pred=1 gold=0 (5.1s, 0 src)  acc=0.824
+  [120] ✗ Research overview  pred=1 gold=0 (5.7s, 0 src)  acc=0.817
+  [121] ✓ Research overview  pred=3 gold=3 (5.7s, 0 src)  acc=0.818
+  [122] ✓ Research overview  pred=1 gold=1 (5.5s, 5 src)  acc=0.820
+  [123] ✓ Research overview  pred=1 gold=1 (5.8s, 0 src)  acc=0.821
+  [124] ✓ Research overview  pred=3 gold=3 (5.4s, 0 src)  acc=0.823
+  [125] ✓ Research overview  pred=3 gold=3 (4.9s, 0 src)  acc=0.824
+  [126] ✗ Research overview  pred=2 gold=0 (5.0s, 1 src)  acc=0.817
+  [127] ✓ Research overview  pred=3 gold=3 (4.7s, 0 src)  acc=0.819
+  [128] ✓ Research overview  pred=4 gold=4 (5.8s, 0 src)  acc=0.820
+  [129] ✓ Research overview  pred=4 gold=4 (4.6s, 0 src)  acc=0.822
+  [130] ✓ Research overview  pred=1 gold=1 (4.8s, 0 src)  acc=0.823
+  [131] ✓ Research overview  pred=4 gold=4 (5.3s, 0 src)  acc=0.824
+  [132] ✓ Research overview  pred=0 gold=0 (5.1s, 0 src)  acc=0.826
+  [133] ✓ Research overview  pred=2 gold=2 (5.5s, 0 src)  acc=0.827
+  [134] ✓ Research overview  pred=0 gold=0 (5.9s, 6 src)  acc=0.828
+  [135] ✗ Research overview  pred=0 gold=4 (4.5s, 0 src)  acc=0.822
+  [136] ✗ Research overview  pred=3 gold=2 (5.2s, 0 src)  acc=0.816
+  [137] ✗ Research overview  pred=0 gold=2 (5.8s, 0 src)  acc=0.810
+  [138] ✗ Research overview  pred=2 gold=3 (4.8s, 0 src)  acc=0.804
+  [139] ✗ Research overview  pred=1 gold=0 (3.7s, 0 src)  acc=0.799
+  [140] ✓ Research overview  pred=3 gold=3 (4.1s, 0 src)  acc=0.800
+  [141] ✗ Research overview  pred=4 gold=1 (5.1s, 1 src)  acc=0.794
+  [142] ✓ Research overview  pred=2 gold=2 (5.3s, 0 src)  acc=0.796
+  [143] ✓ Research overview  pred=3 gold=3 (3.9s, 0 src)  acc=0.797
+  [144] ✓ Research overview  pred=4 gold=4 (5.0s, 0 src)  acc=0.799
+  [145] ✗ Research overview  pred=4 gold=0 (5.0s, 0 src)  acc=0.793
+  [146] ✓ Research overview  pred=3 gold=3 (4.4s, 0 src)  acc=0.795
+  [147] ✓ Research overview  pred=0 gold=0 (4.8s, 0 src)  acc=0.796
+  [148] ✓ Research overview  pred=2 gold=2 (5.8s, 0 src)  acc=0.797
+  [149] ✗ Research overview  pred=2 gold=3 (5.5s, 0 src)  acc=0.792
+  [150] ✓ Research overview  pred=2 gold=2 (5.4s, 1 src)  acc=0.793
+  [151] ✓ Research overview  pred=4 gold=4 (5.7s, 0 src)  acc=0.795
+  [152] ✓ Research overview  pred=2 gold=2 (5.4s, 0 src)  acc=0.796
+  [153] ✓ Research overview  pred=2 gold=2 (3.6s, 0 src)  acc=0.797
+  [154] ✓ Research overview  pred=0 gold=0 (4.7s, 0 src)  acc=0.799
+  [155] ✓ Research overview  pred=3 gold=3 (4.8s, 0 src)  acc=0.800
+  [156] ✓ Research overview  pred=0 gold=0 (5.4s, 0 src)  acc=0.801
+  [157] ✓ Research overview  pred=4 gold=4 (5.1s, 0 src)  acc=0.803
+  [158] ✓ Research overview  pred=3 gold=3 (4.7s, 0 src)  acc=0.804
+  [159] ✗ Research overview  pred=0 gold=1 (5.0s, 0 src)  acc=0.799
+  [160] ✓ Research overview  pred=3 gold=3 (5.0s, 0 src)  acc=0.800
+  [161] ✗ Research overview  pred=3 gold=4 (5.4s, 0 src)  acc=0.795
+  [162] ✓ Research overview  pred=0 gold=0 (5.3s, 0 src)  acc=0.796
+  [163] ✗ Research overview  pred=4 gold=3 (3.2s, 0 src)  acc=0.791
+  [164] ✓ Research overview  pred=1 gold=1 (5.1s, 0 src)  acc=0.793
+  [165] ✓ Research overview  pred=0 gold=0 (6.0s, 2 src)  acc=0.794
+  [166] ✓ Research overview  pred=2 gold=2 (5.5s, 0 src)  acc=0.795
+  [167] ✓ Research overview  pred=2 gold=2 (4.8s, 0 src)  acc=0.796
+  [168] ✓ Research overview  pred=4 gold=4 (4.4s, 0 src)  acc=0.798
+  [169] ✓ Research overview  pred=1 gold=1 (6.2s, 4 src)  acc=0.799
+  [170] ✓ Research overview  pred=4 gold=4 (6.0s, 2 src)  acc=0.800
+  [171] ✓ Research overview  pred=4 gold=4 (5.2s, 0 src)  acc=0.801
+  [172] ✓ Research overview  pred=3 gold=3 (5.3s, 0 src)  acc=0.802
+  [173] ✓ Research overview  pred=3 gold=3 (4.0s, 0 src)  acc=0.803
+  [174] ✓ Research overview  pred=3 gold=3 (4.8s, 0 src)  acc=0.805
+  [175] ✓ Research overview  pred=0 gold=0 (2.7s, 0 src)  acc=0.806
+  [176] ✓ Research overview  pred=2 gold=2 (5.2s, 0 src)  acc=0.807
+  [177] ✓ Research overview  pred=0 gold=0 (4.9s, 0 src)  acc=0.808
+  [178] ✓ Research overview  pred=4 gold=4 (5.2s, 0 src)  acc=0.809
+  [179] ✓ Research overview  pred=3 gold=3 (5.8s, 2 src)  acc=0.810
+  [180] ✗ Research overview  pred=0 gold=4 (5.3s, 0 src)  acc=0.806
+  [181] ✓ Research overview  pred=1 gold=1 (4.3s, 0 src)  acc=0.807
+  [182] ✓ Research overview  pred=2 gold=2 (3.2s, 0 src)  acc=0.808
+  [183] ✗ Research overview  pred=2 gold=0 (4.6s, 1 src)  acc=0.803
+  [184] ✓ Research overview  pred=3 gold=3 (4.7s, 0 src)  acc=0.804
+  [185] ✓ Research overview  pred=4 gold=4 (5.3s, 0 src)  acc=0.805
+  [186] ✗ Research overview  pred=3 gold=2 (4.8s, 0 src)  acc=0.801
+  [187] ✓ Research overview  pred=3 gold=3 (4.6s, 0 src)  acc=0.802
+  [188] ✗ Research overview  pred=1 gold=2 (3.4s, 0 src)  acc=0.798
+  [189] ✓ Research overview  pred=2 gold=2 (4.6s, 0 src)  acc=0.799
+  [190] ✓ Research overview  pred=3 gold=3 (5.2s, 0 src)  acc=0.800
+  [191] ✓ Research overview  pred=2 gold=2 (3.6s, 0 src)  acc=0.801
+  [192] ✗ Research overview  pred=2 gold=3 (5.0s, 0 src)  acc=0.797
+  [193] ✓ Research overview  pred=3 gold=3 (5.7s, 0 src)  acc=0.798
+  [194] ✓ Research overview  pred=4 gold=4 (6.8s, 3 src)  acc=0.799
+  [195] ✓ Research overview  pred=2 gold=2 (5.3s, 0 src)  acc=0.800
+  [196] ✓ Research overview  pred=0 gold=0 (5.1s, 0 src)  acc=0.801
+  [197] ✓ Research overview  pred=1 gold=1 (5.0s, 0 src)  acc=0.802
+  [198] ✓ Research overview  pred=0 gold=0 (4.7s, 5 src)  acc=0.803
+  [199] ✗ Research overview  pred=0 gold=3 (5.3s, 1 src)  acc=0.799
+  [200] ✓ Research overview  pred=1 gold=1 (4.2s, 0 src)  acc=0.800
+
+============================================================
+Category: Standards overview  (100 questions)
+============================================================
+  [201] ✓ Standards overview pred=2 gold=2 (3.8s, 2 src)  acc=0.801
+  [202] ✓ Standards overview pred=1 gold=1 (6.3s, 5 src)  acc=0.802
+  [203] ✗ Standards overview pred=1 gold=2 (9.1s, 6 src)  acc=0.798
+  [204] ✗ Standards overview pred=0 gold=1 (5.1s, 0 src)  acc=0.794
+  [205] ✓ Standards overview pred=3 gold=3 (5.0s, 0 src)  acc=0.795
+  [206] ✓ Standards overview pred=0 gold=0 (5.8s, 2 src)  acc=0.796
+  [207] ✗ Standards overview pred=0 gold=1 (5.2s, 0 src)  acc=0.792
+  [208] ✓ Standards overview pred=3 gold=3 (6.0s, 1 src)  acc=0.793
+  [209] ✗ Standards overview pred=3 gold=0 (6.7s, 1 src)  acc=0.789
+  [210] ✓ Standards overview pred=4 gold=4 (7.7s, 1 src)  acc=0.790
+  [211] ✗ Standards overview pred=1 gold=0 (5.8s, 0 src)  acc=0.787
+  [212] ✓ Standards overview pred=3 gold=3 (5.9s, 0 src)  acc=0.788
+  [213] ✓ Standards overview pred=0 gold=0 (7.1s, 2 src)  acc=0.789
+  [214] ✓ Standards overview pred=3 gold=3 (5.6s, 0 src)  acc=0.790
+  [215] ✓ Standards overview pred=1 gold=1 (8.8s, 6 src)  acc=0.791
+  [216] ✓ Standards overview pred=1 gold=1 (5.2s, 0 src)  acc=0.792
+  [217] ✓ Standards overview pred=3 gold=3 (6.2s, 0 src)  acc=0.793
+  [218] ✗ Standards overview pred=2 gold=0 (4.9s, 3 src)  acc=0.789
+  [219] ✗ Standards overview pred=1 gold=3 (5.8s, 5 src)  acc=0.785
+  [220] ✓ Standards overview pred=3 gold=3 (7.3s, 6 src)  acc=0.786
+  [221] ✗ Standards overview pred=0 gold=4 (5.8s, 0 src)  acc=0.783
+  [222] ✗ Standards overview pred=4 gold=3 (7.8s, 6 src)  acc=0.779
+  [223] ✗ Standards overview pred=2 gold=3 (5.4s, 0 src)  acc=0.776
+  [224] ✗ Standards overview pred=3 gold=1 (5.3s, 2 src)  acc=0.772
+  [225] ✗ Standards overview pred=3 gold=4 (5.6s, 0 src)  acc=0.769
+  [226] ✓ Standards overview pred=3 gold=3 (5.6s, 0 src)  acc=0.770
+  [227] ✓ Standards overview pred=2 gold=2 (5.6s, 0 src)  acc=0.771
+  [228] ✓ Standards overview pred=4 gold=4 (5.3s, 0 src)  acc=0.772
+  [229] ✗ Standards overview pred=3 gold=2 (5.7s, 0 src)  acc=0.769
+  [230] ✗ Standards overview pred=2 gold=1 (6.0s, 0 src)  acc=0.765
+  [231] ✓ Standards overview pred=3 gold=3 (4.9s, 0 src)  acc=0.766
+  [232] ✗ Standards overview pred=3 gold=4 (6.9s, 6 src)  acc=0.763
+  [233] ✗ Standards overview pred=4 gold=3 (4.4s, 0 src)  acc=0.760
+  [234] ✗ Standards overview pred=1 gold=3 (5.6s, 0 src)  acc=0.756
+  [235] ✗ Standards overview pred=4 gold=3 (2.8s, 1 src)  acc=0.753
+  [236] ✓ Standards overview pred=3 gold=3 (5.2s, 0 src)  acc=0.754
+  [237] ✓ Standards overview pred=3 gold=3 (5.2s, 0 src)  acc=0.755
+  [238] ✗ Standards overview pred=2 gold=1 (4.0s, 1 src)  acc=0.752
+  [239] ✓ Standards overview pred=2 gold=2 (5.2s, 0 src)  acc=0.753
+  [240] ✓ Standards overview pred=2 gold=2 (5.1s, 0 src)  acc=0.754
+  [241] ✓ Standards overview pred=2 gold=2 (7.4s, 5 src)  acc=0.755
+  [242] ✗ Standards overview pred=0 gold=2 (4.8s, 0 src)  acc=0.752
+  [243] ✗ Standards overview pred=1 gold=3 (5.2s, 1 src)  acc=0.749
+  [244] ✓ Standards overview pred=2 gold=2 (5.2s, 0 src)  acc=0.750
+  [245] ✓ Standards overview pred=4 gold=4 (5.7s, 2 src)  acc=0.751
+  [246] ✓ Standards overview pred=0 gold=0 (4.0s, 5 src)  acc=0.752
+  [247] ✓ Standards overview pred=3 gold=3 (5.5s, 0 src)  acc=0.753
+  [248] ✓ Standards overview pred=2 gold=2 (6.5s, 6 src)  acc=0.754
+  [249] ✓ Standards overview pred=2 gold=2 (5.6s, 0 src)  acc=0.755
+  [250] ✓ Standards overview pred=3 gold=3 (4.6s, 0 src)  acc=0.756
+  [251] ✓ Standards overview pred=1 gold=1 (5.0s, 1 src)  acc=0.757
+  [252] ✗ Standards overview pred=2 gold=3 (5.1s, 0 src)  acc=0.754
+  [253] ✓ Standards overview pred=1 gold=1 (4.8s, 0 src)  acc=0.755
+  [254] ✓ Standards overview pred=0 gold=0 (3.4s, 0 src)  acc=0.756
+  [255] ✓ Standards overview pred=2 gold=2 (5.4s, 3 src)  acc=0.757
+  [256] ✓ Standards overview pred=4 gold=4 (6.2s, 0 src)  acc=0.758
+  [257] ✓ Standards overview pred=2 gold=2 (6.9s, 3 src)  acc=0.759
+  [258] ✓ Standards overview pred=1 gold=1 (5.3s, 0 src)  acc=0.760
+  [259] ✗ Standards overview pred=0 gold=3 (5.4s, 1 src)  acc=0.757
+  [260] ✓ Standards overview pred=3 gold=3 (4.6s, 2 src)  acc=0.758
+  [261] ✓ Standards overview pred=1 gold=1 (5.2s, 0 src)  acc=0.759
+  [262] ✗ Standards overview pred=0 gold=1 (5.2s, 1 src)  acc=0.756
+  [263] ✓ Standards overview pred=4 gold=4 (5.9s, 4 src)  acc=0.757
+  [264] ✓ Standards overview pred=3 gold=3 (5.5s, 2 src)  acc=0.758
+  [265] ✓ Standards overview pred=0 gold=0 (4.6s, 0 src)  acc=0.758
+  [266] ✓ Standards overview pred=3 gold=3 (6.3s, 0 src)  acc=0.759
+  [267] ✓ Standards overview pred=4 gold=4 (8.4s, 1 src)  acc=0.760
+  [268] ✗ Standards overview pred=1 gold=4 (5.4s, 0 src)  acc=0.757
+  [269] ✓ Standards overview pred=0 gold=0 (5.3s, 0 src)  acc=0.758
+  [270] ✓ Standards overview pred=2 gold=2 (6.4s, 3 src)  acc=0.759
+  [271] ✓ Standards overview pred=3 gold=3 (5.9s, 0 src)  acc=0.760
+  [272] ✓ Standards overview pred=1 gold=1 (5.4s, 0 src)  acc=0.761
+  [273] ✓ Standards overview pred=3 gold=3 (5.7s, 2 src)  acc=0.762
+  [274] ✓ Standards overview pred=3 gold=3 (6.0s, 6 src)  acc=0.763
+  [275] ✓ Standards overview pred=1 gold=1 (7.4s, 4 src)  acc=0.764
+  [276] ✓ Standards overview pred=2 gold=2 (5.0s, 1 src)  acc=0.764
+  [277] ✓ Standards overview pred=0 gold=0 (5.7s, 0 src)  acc=0.765
+  [278] ✓ Standards overview pred=4 gold=4 (5.1s, 0 src)  acc=0.766
+  [279] ✓ Standards overview pred=2 gold=2 (5.4s, 3 src)  acc=0.767
+  [280] ✓ Standards overview pred=1 gold=1 (6.1s, 0 src)  acc=0.768
+  [281] ✓ Standards overview pred=1 gold=1 (5.6s, 0 src)  acc=0.769
+  [282] ✓ Standards overview pred=3 gold=3 (5.3s, 0 src)  acc=0.770
+  [283] ✓ Standards overview pred=3 gold=3 (6.9s, 4 src)  acc=0.770
+  [284] ✓ Standards overview pred=1 gold=1 (5.7s, 4 src)  acc=0.771
+  [285] ✓ Standards overview pred=0 gold=0 (5.9s, 0 src)  acc=0.772
+  [286] ✓ Standards overview pred=0 gold=0 (6.5s, 2 src)  acc=0.773
+  [287] ✓ Standards overview pred=1 gold=1 (6.2s, 2 src)  acc=0.774
+  [288] ✓ Standards overview pred=3 gold=3 (2.9s, 0 src)  acc=0.774
+  [289] ✓ Standards overview pred=0 gold=0 (5.8s, 4 src)  acc=0.775
+  [290] ✗ Standards overview pred=0 gold=3 (5.6s, 0 src)  acc=0.772
+  [291] ✗ Standards overview pred=1 gold=2 (6.4s, 1 src)  acc=0.770
+  [292] ✗ Standards overview pred=1 gold=0 (6.4s, 0 src)  acc=0.767
+  [293] ✗ Standards overview pred=4 gold=2 (4.4s, 0 src)  acc=0.765
+  [294] ✗ Standards overview pred=3 gold=1 (5.3s, 0 src)  acc=0.762
+  [295] ✓ Standards overview pred=0 gold=0 (5.5s, 2 src)  acc=0.763
+  [296] ✓ Standards overview pred=2 gold=2 (8.1s, 6 src)  acc=0.764
+  [297] ✗ Standards overview pred=1 gold=2 (5.7s, 2 src)  acc=0.761
+  [298] ✓ Standards overview pred=2 gold=2 (4.9s, 0 src)  acc=0.762
+  [299] ✗ Standards overview pred=1 gold=0 (5.7s, 0 src)  acc=0.759
+  [300] ✓ Standards overview pred=4 gold=4 (6.9s, 0 src)  acc=0.760
+
+============================================================
+Category: Standards specifications  (100 questions)
+============================================================
+  [301] ✓ Standards specific pred=2 gold=2 (8.5s, 4 src)  acc=0.761
+  [302] ✓ Standards specific pred=0 gold=0 (6.9s, 6 src)  acc=0.762
+  [303] ✓ Standards specific pred=2 gold=2 (6.1s, 1 src)  acc=0.762
+  [304] ✗ Standards specific pred=4 gold=3 (5.8s, 0 src)  acc=0.760
+  [305] ✗ Standards specific pred=0 gold=3 (6.5s, 5 src)  acc=0.757
+  [306] ✗ Standards specific pred=0 gold=2 (7.8s, 5 src)  acc=0.755
+  [307] ✓ Standards specific pred=0 gold=0 (5.8s, 1 src)  acc=0.756
+  [308] ✗ Standards specific pred=4 gold=1 (5.0s, 6 src)  acc=0.753
+  [309] ✓ Standards specific pred=1 gold=1 (4.6s, 0 src)  acc=0.754
+  [310] ✓ Standards specific pred=0 gold=0 (6.5s, 1 src)  acc=0.755
+  [311] ✗ Standards specific pred=1 gold=4 (5.6s, 1 src)  acc=0.752
+  [312] ✓ Standards specific pred=4 gold=4 (5.4s, 6 src)  acc=0.753
+  [313] ✓ Standards specific pred=1 gold=1 (6.3s, 6 src)  acc=0.754
+  [314] ✓ Standards specific pred=4 gold=4 (7.2s, 2 src)  acc=0.755
+  [315] ✓ Standards specific pred=0 gold=0 (4.3s, 0 src)  acc=0.756
+  [316] ✓ Standards specific pred=1 gold=1 (7.0s, 6 src)  acc=0.756
+  [317] ✓ Standards specific pred=2 gold=2 (6.3s, 1 src)  acc=0.757
+  [318] ✓ Standards specific pred=0 gold=0 (5.5s, 6 src)  acc=0.758
+  [319] ✓ Standards specific pred=3 gold=3 (5.4s, 0 src)  acc=0.759
+  [320] ✗ Standards specific pred=2 gold=3 (5.2s, 0 src)  acc=0.756
+  [321] ✓ Standards specific pred=2 gold=2 (6.4s, 5 src)  acc=0.757
+  [322] ✓ Standards specific pred=2 gold=2 (5.1s, 0 src)  acc=0.758
+  [323] ✓ Standards specific pred=3 gold=3 (7.8s, 6 src)  acc=0.759
+  [324] ✓ Standards specific pred=1 gold=1 (5.7s, 4 src)  acc=0.759
+  [325] ✓ Standards specific pred=3 gold=3 (6.5s, 6 src)  acc=0.760
+  [326] ✓ Standards specific pred=1 gold=1 (7.5s, 4 src)  acc=0.761
+  [327] ✓ Standards specific pred=4 gold=4 (5.2s, 0 src)  acc=0.761
+  [328] ✗ Standards specific pred=0 gold=1 (5.6s, 5 src)  acc=0.759
+  [329] ✗ Standards specific pred=3 gold=0 (5.2s, 0 src)  acc=0.757
+  [330] ✓ Standards specific pred=2 gold=2 (7.0s, 6 src)  acc=0.758
+  [331] ✓ Standards specific pred=2 gold=2 (7.9s, 6 src)  acc=0.758
+  [332] ✓ Standards specific pred=1 gold=1 (5.5s, 0 src)  acc=0.759
+  [333] ✓ Standards specific pred=1 gold=1 (6.3s, 2 src)  acc=0.760
+  [334] ✓ Standards specific pred=0 gold=0 (5.9s, 6 src)  acc=0.760
+  [335] ✗ Standards specific pred=1 gold=3 (6.0s, 1 src)  acc=0.758
+  [336] ✓ Standards specific pred=4 gold=4 (7.1s, 4 src)  acc=0.759
+  [337] ✓ Standards specific pred=2 gold=2 (5.7s, 1 src)  acc=0.760
+  [338] ✓ Standards specific pred=3 gold=3 (9.3s, 6 src)  acc=0.760
+  [339] ✓ Standards specific pred=1 gold=1 (5.8s, 6 src)  acc=0.761
+  [340] ✗ Standards specific pred=2 gold=0 (5.9s, 1 src)  acc=0.759
+  [341] ✓ Standards specific pred=2 gold=2 (4.9s, 0 src)  acc=0.760
+  [342] ✓ Standards specific pred=2 gold=2 (7.4s, 6 src)  acc=0.760
+  [343] ✓ Standards specific pred=4 gold=4 (7.5s, 4 src)  acc=0.761
+  [344] ✓ Standards specific pred=3 gold=3 (4.7s, 0 src)  acc=0.762
+  [345] ✓ Standards specific pred=0 gold=0 (5.3s, 0 src)  acc=0.762
+  [346] ✓ Standards specific pred=2 gold=2 (6.3s, 4 src)  acc=0.763
+  [347] ✓ Standards specific pred=1 gold=1 (6.5s, 6 src)  acc=0.764
+  [348] ✓ Standards specific pred=3 gold=3 (6.2s, 6 src)  acc=0.764
+  [349] ✓ Standards specific pred=3 gold=3 (5.7s, 0 src)  acc=0.765
+  [350] ✓ Standards specific pred=3 gold=3 (5.1s, 0 src)  acc=0.766
+  [351] ✓ Standards specific pred=0 gold=0 (6.3s, 0 src)  acc=0.766
+  [352] ✓ Standards specific pred=4 gold=4 (6.6s, 6 src)  acc=0.767
+  [353] ✓ Standards specific pred=3 gold=3 (5.1s, 2 src)  acc=0.768
+  [354] ✓ Standards specific pred=4 gold=4 (7.2s, 4 src)  acc=0.768
+  [355] ✓ Standards specific pred=3 gold=3 (5.0s, 0 src)  acc=0.769
+  [356] ✓ Standards specific pred=2 gold=2 (5.2s, 2 src)  acc=0.770
+  [357] ✗ Standards specific pred=3 gold=2 (6.1s, 6 src)  acc=0.768
+  [358] ✓ Standards specific pred=4 gold=4 (5.5s, 5 src)  acc=0.768
+  [359] ✓ Standards specific pred=2 gold=2 (5.1s, 0 src)  acc=0.769
+  [360] ✓ Standards specific pred=0 gold=0 (5.5s, 4 src)  acc=0.769
+  [361] ✗ Standards specific pred=2 gold=1 (9.0s, 6 src)  acc=0.767
+  [362] ✗ Standards specific pred=1 gold=2 (5.4s, 0 src)  acc=0.765
+  [363] ✓ Standards specific pred=3 gold=3 (5.5s, 0 src)  acc=0.766
+  [364] ✗ Standards specific pred=0 gold=3 (5.3s, 1 src)  acc=0.764
+  [365] ✗ Standards specific pred=4 gold=0 (5.3s, 0 src)  acc=0.762
+  [366] ✓ Standards specific pred=0 gold=0 (5.5s, 1 src)  acc=0.762
+  [367] ✓ Standards specific pred=2 gold=2 (5.2s, 0 src)  acc=0.763
+  [368] ✗ Standards specific pred=1 gold=3 (5.7s, 3 src)  acc=0.761
+  [369] ✓ Standards specific pred=2 gold=2 (5.3s, 0 src)  acc=0.762
+  [370] ✓ Standards specific pred=1 gold=1 (7.5s, 1 src)  acc=0.762
+  [371] ✓ Standards specific pred=3 gold=3 (5.4s, 1 src)  acc=0.763
+  [372] ✓ Standards specific pred=2 gold=2 (7.7s, 6 src)  acc=0.763
+  [373] ✓ Standards specific pred=4 gold=4 (6.8s, 3 src)  acc=0.764
+  [374] ✓ Standards specific pred=4 gold=4 (5.1s, 0 src)  acc=0.765
+  [375] ✓ Standards specific pred=2 gold=2 (5.5s, 1 src)  acc=0.765
+  [376] ✓ Standards specific pred=1 gold=1 (2.6s, 0 src)  acc=0.766
+  [377] ✗ Standards specific pred=3 gold=0 (5.4s, 0 src)  acc=0.764
+  [378] ✓ Standards specific pred=1 gold=1 (5.5s, 4 src)  acc=0.765
+  [379] ✓ Standards specific pred=2 gold=2 (5.8s, 6 src)  acc=0.765
+  [380] ✓ Standards specific pred=1 gold=1 (5.1s, 0 src)  acc=0.766
+  [381] ✓ Standards specific pred=2 gold=2 (3.4s, 0 src)  acc=0.766
+  [382] ✗ Standards specific pred=1 gold=2 (8.1s, 3 src)  acc=0.764
+  [383] ✗ Standards specific pred=1 gold=3 (7.8s, 3 src)  acc=0.762
+  [384] ✓ Standards specific pred=4 gold=4 (5.1s, 1 src)  acc=0.763
+  [385] ✗ Standards specific pred=3 gold=4 (7.8s, 6 src)  acc=0.761
+  [386] ✓ Standards specific pred=1 gold=1 (6.3s, 3 src)  acc=0.762
+  [387] ✓ Standards specific pred=0 gold=0 (5.5s, 4 src)  acc=0.762
+  [388] ✓ Standards specific pred=3 gold=3 (4.8s, 0 src)  acc=0.763
+  [389] ✓ Standards specific pred=2 gold=2 (7.0s, 5 src)  acc=0.763
+  [390] ✓ Standards specific pred=0 gold=0 (5.3s, 6 src)  acc=0.764
+  [391] ✗ Standards specific pred=3 gold=2 (4.8s, 0 src)  acc=0.762
+  [392] ✗ Standards specific pred=3 gold=2 (5.0s, 2 src)  acc=0.760
+  [393] ✓ Standards specific pred=1 gold=1 (7.3s, 4 src)  acc=0.761
+  [394] ✓ Standards specific pred=2 gold=2 (4.6s, 0 src)  acc=0.761
+  [395] ✗ Standards specific pred=4 gold=1 (4.6s, 0 src)  acc=0.759
+  [396] ✗ Standards specific pred=3 gold=1 (7.4s, 6 src)  acc=0.758
+  [397] ✓ Standards specific pred=3 gold=3 (5.4s, 1 src)  acc=0.758
+  [398] ✓ Standards specific pred=1 gold=1 (5.6s, 6 src)  acc=0.759
+  [399] ✓ Standards specific pred=2 gold=2 (5.5s, 3 src)  acc=0.759
+  [400] ✓ Standards specific pred=4 gold=4 (7.6s, 2 src)  acc=0.760
+
+================================================================================
+TeleQnA Benchmark — phaseC2_500question_qwen3
+================================================================================
+Mode: fixed    Model: qwen3:14b    Think: False
+Total: 400    Correct: 304    Accuracy: 76.0%
+Errors: 0    Extraction failures: 0    Avg latency: 5566ms
+Graph search succeeded: 313/400    Graph errors: 0
+================================================================================
+
+Category                      Q  Correct      Acc    Avg ms  Err  GraphOK
+--------------------------------------------------------------------------------
+Lexicon                     100       87   87.00%      5579    0       79
+Research overview           100       73   73.00%      5001    0       65
+Standards overview          100       68   68.00%      5686    0       84
+Standards specifications    100       76   76.00%      5999    0       85
+================================================================================
+
+Wrote: /home/linguyen/ASK_3GPP/tests/benchmark/results/phaseC2_500question_qwen3/results.json
+Wrote: /home/linguyen/ASK_3GPP/tests/benchmark/results/phaseC2_500question_qwen3/questions.json
+Wrote: /home/linguyen/ASK_3GPP/tests/benchmark/results/phaseC2_500question_qwen3/run.log
+Wrote: /home/linguyen/ASK_3GPP/tests/benchmark/results/phaseC2_500question_qwen3/analysis.md
+Wrote: /home/linguyen/ASK_3GPP/tests/benchmark/results/phaseC2_500question_qwen3/debug.log
