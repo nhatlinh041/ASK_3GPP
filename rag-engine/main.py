@@ -45,15 +45,60 @@ class QueryRequest(BaseModel):
     think: bool = True
 
 
+# Heartbeat interval for the SSE stream. Cloudflare tunnels (and many reverse
+# proxies) close idle HTTP responses after ~30-100s; long ReAct runs có khoảng
+# im lặng (chờ Neo4j, rerank, lúc model warm-up) đủ để chạm ngưỡng. Ta gửi SSE
+# comment line `: ping\n\n` mỗi HEARTBEAT_INTERVAL_S giây — client EventSource
+# bỏ qua, chỉ tunnel/proxy thấy có byte chảy nên không đóng connection.
+HEARTBEAT_INTERVAL_S = 10.0
+
+
 async def event_stream(request: QueryRequest) -> AsyncIterator[str]:
-    """Convert orchestrator events to SSE format. The asyncio.sleep(0) after each
-    chunk gives the event loop a chance to push the byte to the socket immediately,
-    which keeps token streaming feeling live to the client."""
-    async for event in orchestrator.query(
-        request.question, request.mode, request.model, think=request.think
-    ):
-        yield f"data: {json.dumps(event)}\n\n"
-        await asyncio.sleep(0)
+    """Convert orchestrator events to SSE format with periodic heartbeats so
+    long-running streams survive reverse-proxy idle timeouts. Producer task
+    chạy độc lập để có thể chen heartbeat vào những khoảng im lặng (Neo4j,
+    rerank, model load) — `asyncio.wait_for` trên iter trực tiếp không an
+    toàn vì sẽ huỷ generator giữa chừng khi timeout."""
+    queue: asyncio.Queue = asyncio.Queue()
+    sentinel = object()
+
+    # Producer: drain orchestrator into queue; cuối cùng push sentinel hoặc exception
+    async def producer() -> None:
+        try:
+            async for event in orchestrator.query(
+                request.question, request.mode, request.model, think=request.think
+            ):
+                await queue.put(event)
+        except Exception as exc:  # noqa: BLE001 — surface to consumer below
+            await queue.put(exc)
+        else:
+            await queue.put(sentinel)
+
+    task = asyncio.create_task(producer())
+    try:
+        while True:
+            try:
+                item = await asyncio.wait_for(queue.get(), timeout=HEARTBEAT_INTERVAL_S)
+            except asyncio.TimeoutError:
+                # Im lặng quá lâu → gửi comment giữ kết nối; client bỏ qua dòng này
+                yield ": ping\n\n"
+                continue
+            if item is sentinel:
+                break
+            if isinstance(item, Exception):
+                # Surface lỗi orchestrator dưới dạng SSE event để frontend hiển thị
+                yield f"data: {json.dumps({'stage': 'error', 'data': str(item)})}\n\n"
+                break
+            yield f"data: {json.dumps(item)}\n\n"
+            await asyncio.sleep(0)
+    finally:
+        # Client ngắt giữa chừng (cloudflared cancel, browser close) → huỷ producer
+        if not task.done():
+            task.cancel()
+            try:
+                await task
+            except (asyncio.CancelledError, Exception):
+                pass
 
 
 @app.post("/api/query")

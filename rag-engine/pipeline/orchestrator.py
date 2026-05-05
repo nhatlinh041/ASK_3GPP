@@ -79,7 +79,6 @@ class RAGOrchestrator:
         # and schema introspector
         self._driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
 
-        self._intent_clf = IntentClassifier()
         # Term-First with KG-backed resolver for authoritative full names + spec sources
         self._term_resolver = TermResolver(self._driver)
         self._term_first = TermFirstStrategy(resolver=self._term_resolver)
@@ -89,6 +88,9 @@ class RAGOrchestrator:
         self._vector = VectorSearcher(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
 
         self._llm = OllamaClient()
+        # LLM-first intent classifier (regex fallback). Dùng cùng OllamaClient
+        # để Ollama giữ model warm; classify gọi với format=json + think=False
+        self._intent_clf = IntentClassifier(self._llm)
         self._cypher_gen = LLMCypherGenerator(self._llm, model=CYPHER_MODEL)
         # Graph search (LLM Cypher single-shot) — fixed mode only.
         self._graph = GraphSearcher(
@@ -118,9 +120,10 @@ class RAGOrchestrator:
         Each non-token stage emits {input, output, ...flat fields} so the UI
         can show input/output of every tool when the user clicks Details.
         """
-        # Step 1: intent + term extraction (with KG-backed term resolution).
-        # Cheap, deterministic — feeds the planner with seeds + authoritative term info.
-        intent = self._intent_clf.classify(question)
+        # Step 1: intent + term extraction. Intent giờ gọi LLM (format=json,
+        # think=False) — phân biệt được "What is AMF" (definition) vs
+        # "List NFs interact with AMF" (relationship). Term extraction dùng KG.
+        intent = self._intent_clf.classify(question, model=model)
         terms = self._term_first.extract(question)
         resolved = terms.get("resolved", {})
         yield {"stage": "intent", "data": {
