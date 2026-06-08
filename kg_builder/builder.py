@@ -39,6 +39,7 @@ import hashlib
 import json
 import os
 import re
+import sys
 from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum
@@ -688,8 +689,14 @@ class KGBuilder:
                             abbr=abbr, spec_id=spec_id,
                         )
                     created += 1
-                except Exception:
-                    pass
+                # Lộ lỗi cụ thể thay vì swallow — đã từng làm AMF/SMF/NRF
+                # biến mất âm thầm. Vẫn không re-raise để 1 term hỏng không
+                # phá toàn bộ build batch 30k+ term.
+                except Exception as e:
+                    print(
+                        f"[kg] Term '{abbr}' write failed: {type(e).__name__}: {e}",
+                        file=sys.stderr,
+                    )
         return created
 
     @staticmethod

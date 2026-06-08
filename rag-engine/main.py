@@ -1,13 +1,15 @@
 """
 FastAPI RAG Engine — entry point.
-POST /api/query → SSE stream các stage: intent, retrieval_vector, retrieval_graph, rerank, answer, sources.
+POST /api/query → SSE stream các stage: conversation, intent, retrieval_vector, retrieval_graph, rerank, answer, sources.
 POST /api/cypher → execute read-only Cypher against Neo4j (for the Cypher Tester demo page).
+GET/POST/DELETE /api/conversations[/{cid}] → chat history persistence (SQLite).
 """
 import asyncio
 import json
 import os
 import re
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncIterator
 
@@ -15,7 +17,7 @@ from typing import Any, AsyncIterator
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from neo4j import GraphDatabase
@@ -24,8 +26,18 @@ from neo4j.time import Date, DateTime, Time, Duration
 from pydantic import BaseModel
 
 from pipeline.orchestrator import RAGOrchestrator
+from storage import ConversationStore, init_db
 
-app = FastAPI(title="3GPP RAG Engine", version="1.0.0")
+
+# Lifespan: chạy `init_db()` 1 lần lúc startup — idempotent CREATE TABLE IF NOT EXISTS.
+# Dùng async context manager (FastAPI ≥ 0.95 chuẩn) thay cho `@app.on_event("startup")` đã deprecated.
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
+
+app = FastAPI(title="3GPP RAG Engine", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -35,6 +47,8 @@ app.add_middleware(
 )
 
 orchestrator = RAGOrchestrator()
+# Singleton — `ConversationStore` không giữ state, chỉ là namespace cho CRUD methods
+_store = ConversationStore()
 
 
 class QueryRequest(BaseModel):
@@ -45,15 +59,60 @@ class QueryRequest(BaseModel):
     think: bool = True
 
 
+# Heartbeat interval for the SSE stream. Cloudflare tunnels (and many reverse
+# proxies) close idle HTTP responses after ~30-100s; long ReAct runs có khoảng
+# im lặng (chờ Neo4j, rerank, lúc model warm-up) đủ để chạm ngưỡng. Ta gửi SSE
+# comment line `: ping\n\n` mỗi HEARTBEAT_INTERVAL_S giây — client EventSource
+# bỏ qua, chỉ tunnel/proxy thấy có byte chảy nên không đóng connection.
+HEARTBEAT_INTERVAL_S = 10.0
+
+
 async def event_stream(request: QueryRequest) -> AsyncIterator[str]:
-    """Convert orchestrator events to SSE format. The asyncio.sleep(0) after each
-    chunk gives the event loop a chance to push the byte to the socket immediately,
-    which keeps token streaming feeling live to the client."""
-    async for event in orchestrator.query(
-        request.question, request.mode, request.model, think=request.think
-    ):
-        yield f"data: {json.dumps(event)}\n\n"
-        await asyncio.sleep(0)
+    """Convert orchestrator events to SSE format with periodic heartbeats so
+    long-running streams survive reverse-proxy idle timeouts. Producer task
+    chạy độc lập để có thể chen heartbeat vào những khoảng im lặng (Neo4j,
+    rerank, model load) — `asyncio.wait_for` trên iter trực tiếp không an
+    toàn vì sẽ huỷ generator giữa chừng khi timeout."""
+    queue: asyncio.Queue = asyncio.Queue()
+    sentinel = object()
+
+    # Producer: drain orchestrator into queue; cuối cùng push sentinel hoặc exception
+    async def producer() -> None:
+        try:
+            async for event in orchestrator.query(
+                request.question, request.mode, request.model, think=request.think
+            ):
+                await queue.put(event)
+        except Exception as exc:  # noqa: BLE001 — surface to consumer below
+            await queue.put(exc)
+        else:
+            await queue.put(sentinel)
+
+    task = asyncio.create_task(producer())
+    try:
+        while True:
+            try:
+                item = await asyncio.wait_for(queue.get(), timeout=HEARTBEAT_INTERVAL_S)
+            except asyncio.TimeoutError:
+                # Im lặng quá lâu → gửi comment giữ kết nối; client bỏ qua dòng này
+                yield ": ping\n\n"
+                continue
+            if item is sentinel:
+                break
+            if isinstance(item, Exception):
+                # Surface lỗi orchestrator dưới dạng SSE event để frontend hiển thị
+                yield f"data: {json.dumps({'stage': 'error', 'data': str(item)})}\n\n"
+                break
+            yield f"data: {json.dumps(item)}\n\n"
+            await asyncio.sleep(0)
+    finally:
+        # Client ngắt giữa chừng (cloudflared cancel, browser close) → huỷ producer
+        if not task.done():
+            task.cancel()
+            try:
+                await task
+            except (asyncio.CancelledError, Exception):
+                pass
 
 
 @app.post("/api/query")
@@ -209,3 +268,31 @@ async def cypher_schema() -> dict:
 @app.get("/health")
 async def health() -> dict:
     return {"status": "ok"}
+
+
+# ----- Conversation history endpoints (SQLite-backed) -------------------------
+# Tier 1: 1 conversation/browser, không list/sidebar. Frontend lưu cid ở
+# localStorage["chat-conversation-id"] (~36 bytes). Mọi DB call wrap to_thread.
+
+@app.post("/api/conversations", status_code=201)
+async def create_conversation() -> dict:
+    """Tạo conversation rỗng và trả id mới. Dùng cho "New chat" button."""
+    cid = await asyncio.to_thread(_store.create)
+    return {"id": cid}
+
+
+@app.get("/api/conversations/{cid}")
+async def get_conversation(cid: str) -> dict:
+    """Trả conversation metadata + toàn bộ messages (đã parse JSON stages/sources).
+    404 nếu cid không tồn tại — frontend treat as empty history."""
+    conv = await asyncio.to_thread(_store.get, cid)
+    if conv is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return conv
+
+
+@app.delete("/api/conversations/{cid}", status_code=204)
+async def delete_conversation(cid: str) -> Response:
+    """ON DELETE CASCADE tự xoá messages. Idempotent: 204 ngay cả khi cid không tồn tại."""
+    await asyncio.to_thread(_store.delete, cid)
+    return Response(status_code=204)

@@ -357,15 +357,49 @@ def parse_research_action(raw: str) -> PlannerAction:
 
 
 # Strip code fences and pull the first balanced {...} from the LLM output.
+# Also tolerates LLMs that drop the trailing `}` / `]` after closing the last
+# array (qwen3:14b sometimes does this) — _balance_json appends matching
+# closers when the brace/bracket count is uneven.
 def _extract_json_object(raw: str) -> str:
     text = _FENCE.sub("", raw or "").strip()
-    # If the cleaned text already starts with `{`, use it directly.
     if text.startswith("{"):
-        return text
+        return _balance_json(text)
     m = _FIRST_OBJ.search(text)
     if not m:
         raise PlannerParseError(f"No JSON object found in LLM output: {raw[:200]!r}")
-    return m.group(0)
+    return _balance_json(m.group(0))
+
+
+# Walk the JSON text once, tracking string state, and append any missing
+# closing `}` / `]` in the right order so json.loads can succeed. Cheap
+# recovery for truncated LLM streams; if the input is already balanced it
+# returns unchanged.
+def _balance_json(text: str) -> str:
+    stack: list[str] = []
+    in_string = False
+    escaped = False
+    for ch in text:
+        if escaped:
+            escaped = False
+            continue
+        if ch == "\\":
+            escaped = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch in "{[":
+            stack.append(ch)
+        elif ch == "}" and stack and stack[-1] == "{":
+            stack.pop()
+        elif ch == "]" and stack and stack[-1] == "[":
+            stack.pop()
+    if not stack:
+        return text
+    closers = "".join("}" if c == "{" else "]" for c in reversed(stack))
+    return text + closers
 
 
 # Strip fences and pull the first JSON array from the LLM output.

@@ -52,6 +52,58 @@ _CANONICAL_THRESHOLD = float(os.getenv("RERANK_CANONICAL_THRESHOLD", "1.0"))
 # means canonical chunks survive only when the cross-encoder is "uncertain"
 # (logit ∈ [−2, 0)); strongly-negative logits (< −2) drop them like the rest.
 _CANONICAL_FLOOR_DELTA = float(os.getenv("RERANK_CANONICAL_FLOOR_DELTA", "2.0"))
+# Soft minimum on chunks reaching the answer LLM. When the floor logic above
+# drops everything (cross-encoder uniformly pessimistic), the answer LLM runs
+# with empty context — the smoke test on 500question_qwen3_v2 showed this in
+# 217/400 questions. Setting RERANK_MIN_KEEP > 0 guarantees at least N chunks
+# survive: passed-floor first, then best-by-final_score from the rejects.
+# Default 0 preserves the strict Phase C behavior; raise via env to trade
+# noise tolerance for higher recall.
+_RERANK_MIN_KEEP = int(os.getenv("RERANK_MIN_KEEP", "0"))
+
+
+# Document-side augmentation for cross-encoder pairing. 3GPP chunk content
+# often uses an abbreviation that the section_title spells out in full
+# (e.g. content says "The SCP has interfaces..." while the title is
+# "Requirements on the Service Communication Proxy (SCP)"). Without the
+# title, the cross-encoder sees only "SCP" and misses queries phrased with
+# the full name. Inspired by Anthropic's Contextual Retrieval (Sep 2024) but
+# free — the section_title is already authored, no LLM call needed.
+def _augment_for_rerank(c: dict) -> str:
+    title = (c.get("section") or c.get("section_title") or "").strip()
+    content = (c.get("content") or "").strip()
+    # Skip prepend when the title is already a substring of the content
+    # (some short chunks duplicate the title in the body) — avoids feeding
+    # the cross-encoder the same phrase twice.
+    if not title or title in content:
+        return content
+    return f"{title}\n\n{content}"
+
+
+# Query-side expansion: append validated abbreviations + full names from
+# the KG so the cross-encoder can match chunks whether they use the abbrev
+# or the full term. ONLY uses entries that survived TermIndex hard-validation
+# upstream — never injects synonyms from training knowledge.
+def _expand_query_for_rerank(query: str, resolved: dict | None) -> str:
+    if not resolved:
+        return query
+    extras: list[str] = []
+    q_upper = query.upper()
+    q_lower = query.lower()
+    for abbrev, info in resolved.items():
+        if not isinstance(info, dict):
+            continue
+        canon = (abbrev or "").strip()
+        full = (info.get("full_name") or "").strip()
+        # Only append the form that's MISSING from the original query so
+        # we don't double-weight terms the user already typed.
+        if canon and canon.upper() not in q_upper:
+            extras.append(canon)
+        if full and full.lower() not in q_lower:
+            extras.append(full)
+    if not extras:
+        return query
+    return f"{query} {' '.join(extras)}"
 
 
 # Numerically stable sigmoid for cross-encoder logits in [-30, 30] range.
@@ -112,13 +164,21 @@ def rerank(
     chunks: list[dict],
     top_k: int = 6,
     min_score: float | None = None,
+    resolved_terms: dict | None = None,
 ) -> list[dict]:
     """
     Cross-encoder reranking with dedup + negative-score filter. Used by both
     fixed mode and react_agent fallback (when there's only 0-1 gap to fan out
     across).
+
+    `resolved_terms` (the KG-validated `{abbrev: {full_name, ...}}` dict from
+    intent extraction) lets the reranker bridge abbreviation/full-name
+    asymmetry: query "5G SCP" gets expanded with "Service Communication Proxy"
+    so the cross-encoder can match chunks whose content uses either form.
     """
-    return _rerank_with_dedup(query, chunks, top_k, min_score=min_score)
+    return _rerank_with_dedup(
+        query, chunks, top_k, min_score=min_score, resolved_terms=resolved_terms
+    )
 
 
 def rerank_per_gap(
@@ -127,6 +187,7 @@ def rerank_per_gap(
     chunks: list[dict],
     total_top_k: int = 6,
     min_score: float | None = None,
+    resolved_terms: dict | None = None,
 ) -> list[dict]:
     """
     Per-sub-question reranking for compound queries.
@@ -140,21 +201,31 @@ def rerank_per_gap(
     Dedups by normalised chunk_id so the ts_23.288 / ts_23_288 KG duplicates
     don't burn two slots. Filters chunks below `min_score` per pass — a chunk
     can only fill a gap's slot if it scores positively against that gap.
+
+    `resolved_terms` is forwarded to every per-gap pass so abbrev/full-name
+    expansion is consistent.
     """
     if not chunks:
         return []
     if not gaps or len(gaps) <= 1:
         # Fall back to overall rerank when there's nothing to fan out across.
-        return _rerank_with_dedup(question, chunks, total_top_k, min_score=min_score)
+        return _rerank_with_dedup(
+            question, chunks, total_top_k,
+            min_score=min_score, resolved_terms=resolved_terms,
+        )
 
     # Per-gap rerank: each chunk gets a separate score against each gap, plus
     # an overall score against the original question (used for backfill).
     per_gap_ranked: list[list[dict]] = []
     for gap in gaps:
-        scored = _rerank_with_dedup(gap, chunks, top_k=len(chunks), min_score=min_score)
+        scored = _rerank_with_dedup(
+            gap, chunks, top_k=len(chunks),
+            min_score=min_score, resolved_terms=resolved_terms,
+        )
         per_gap_ranked.append(scored)
     overall_ranked = _rerank_with_dedup(
-        question, chunks, top_k=len(chunks), min_score=min_score
+        question, chunks, top_k=len(chunks),
+        min_score=min_score, resolved_terms=resolved_terms,
     )
 
     # Round-robin pick: take the next-best chunk from each gap in turn until
@@ -225,6 +296,7 @@ def _rerank_with_dedup(
     chunks: list[dict],
     top_k: int,
     min_score: float | None = None,
+    resolved_terms: dict | None = None,
 ) -> list[dict]:
     if not chunks:
         return []
@@ -241,31 +313,53 @@ def _rerank_with_dedup(
         seen.add(k)
         deduped.append(c)
 
+    # Step 2 — query-side expansion: append validated abbrev + full_name from
+    # the KG so the cross-encoder can match chunks regardless of which form
+    # they use internally. Only applies when resolved_terms has entries.
+    expanded_query = _expand_query_for_rerank(query, resolved_terms)
+
+    # Step 1 — content-side augmentation: prepend section_title to chunk
+    # content so the cross-encoder sees the full canonical phrasing
+    # (3GPP section titles like "Requirements on the Service Communication
+    # Proxy (SCP)" carry both full name and abbrev).
     model = get_reranker_model()
-    pairs = [(query, c.get("content") or "") for c in deduped]
+    pairs = [(expanded_query, _augment_for_rerank(c)) for c in deduped]
     scores = model.predict(pairs).tolist()
 
-    # Phase C blend with tightened floor bypass.
-    rescored: list[dict] = []
+    # Phase C blend with tightened floor bypass. Score every chunk, then split
+    # by floor so we can supplement `passed` from `dropped` when the soft
+    # minimum (RERANK_MIN_KEEP) demands it.
+    passed: list[dict] = []
+    dropped: list[dict] = []
     for c, s in zip(deduped, scores):
         rerank_logit = float(s)
         upstream = float(c.get("score") or 0.0)
         is_canonical = upstream >= _CANONICAL_THRESHOLD
         # Per-class floor: canonical band is wider but still bounded.
         effective_floor = canonical_floor if is_canonical else floor
-        if rerank_logit < effective_floor:
-            continue
         canonical = 1.0 if is_canonical else 0.0
         final = (
             _BLEND_ALPHA * _sigmoid(rerank_logit)
             + _BLEND_BETA * upstream
             + _BLEND_GAMMA * canonical
         )
-        rescored.append({
+        rec = {
             **c,
             "rerank_score": rerank_logit,  # raw logit kept for debug / observability
             "final_score": final,           # blended score is the sort key
-        })
+        }
+        if rerank_logit < effective_floor:
+            dropped.append(rec)
+        else:
+            passed.append(rec)
 
-    rescored.sort(key=lambda c: c["final_score"], reverse=True)
-    return rescored[:top_k]
+    # Floor bypass: when fewer than RERANK_MIN_KEEP chunks survived, top up
+    # from the best-of-the-rejects (highest blended final_score among the
+    # floor-failed pool) so the answer LLM never runs on empty context.
+    if _RERANK_MIN_KEEP > 0 and len(passed) < _RERANK_MIN_KEEP and dropped:
+        dropped.sort(key=lambda c: c["final_score"], reverse=True)
+        needed = _RERANK_MIN_KEEP - len(passed)
+        passed.extend(dropped[:needed])
+
+    passed.sort(key=lambda c: c["final_score"], reverse=True)
+    return passed[:top_k]

@@ -96,6 +96,12 @@ docs/
 *.dump
 neo4j_data/
 
+# SQLite chat history (created at runtime by rag-engine/storage)
+rag-engine/data/
+*.db
+*.db-wal
+*.db-shm
+
 bao_cao_do_an/
 .md/
 

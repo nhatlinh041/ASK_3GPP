@@ -23,15 +23,24 @@ import retrieval.fusion as fusion  # noqa: E402
 
 class _FakeReranker:
     """Replaces the real cross-encoder for tests. Returns predetermined scores
-    indexed by chunk content."""
+    by checking whether each map key appears as a substring of the content
+    fed to the cross-encoder. Substring lookup so tests remain stable even
+    when fusion._augment_for_rerank prepends section_title to content."""
 
     def __init__(self, score_map: dict[str, float]):
         self._map = score_map
 
     def predict(self, pairs):
-        # `pairs` is list of (query, content). Look up by content; default 0.0.
         import numpy as np
-        return np.array([self._map.get(content, 0.0) for _, content in pairs])
+        out = []
+        for _, content in pairs:
+            score = 0.0
+            for key, value in self._map.items():
+                if key in content:
+                    score = value
+                    break
+            out.append(score)
+        return np.array(out)
 
 
 @pytest.fixture
@@ -184,6 +193,86 @@ class TestRerankWithDedup:
         out = fusion._rerank_with_dedup("q", chunks, top_k=5)
         assert len(out) == 1
         assert out[0]["chunk_id"] == "ts_23.288_4.1"
+
+
+# ---------- RERANK_MIN_KEEP soft floor bypass -------------------------------
+
+
+class TestMinKeepBypass:
+    """Soft floor bypass: when the strict floor drops everything (or almost
+    everything), RERANK_MIN_KEEP > 0 supplements from the best-rejected
+    chunks so the answer LLM is never handed empty context."""
+
+    def test_default_zero_keeps_strict_floor(self, monkeypatch, patch_reranker):
+        # MIN_KEEP=0 (default) — strict floor still drops everything if all
+        # logits are below it. Same as legacy behaviour.
+        monkeypatch.setattr(fusion, "_RERANK_MIN_KEEP", 0)
+        patch_reranker({"a": -3.0, "b": -3.0})
+        chunks = [
+            {"chunk_id": "a", "content": "a", "score": 0.5},
+            {"chunk_id": "b", "content": "b", "score": 0.5},
+        ]
+        out = fusion._rerank_with_dedup("q", chunks, top_k=5)
+        assert out == []
+
+    def test_min_keep_supplements_from_dropped(self, monkeypatch, patch_reranker):
+        # MIN_KEEP=2, strict floor would drop both chunks; bypass keeps the
+        # two best-by-final_score even though logits are below floor.
+        monkeypatch.setattr(fusion, "_RERANK_MIN_KEEP", 2)
+        patch_reranker({"a": -2.5, "b": -3.5})
+        chunks = [
+            {"chunk_id": "a", "content": "a", "score": 0.7},  # higher upstream
+            {"chunk_id": "b", "content": "b", "score": 0.4},
+        ]
+        out = fusion._rerank_with_dedup("q", chunks, top_k=5)
+        ids = [c["chunk_id"] for c in out]
+        assert len(out) == 2
+        # 'a' wins on blended score because its upstream is higher and its
+        # logit is less negative (sigmoid(-2.5) > sigmoid(-3.5)).
+        assert ids == ["a", "b"]
+
+    def test_min_keep_does_not_displace_passed(self, monkeypatch, patch_reranker):
+        # MIN_KEEP=3, but only 1 chunk passes floor — bypass tops up with
+        # the next-best rejected chunks while keeping the passed one.
+        monkeypatch.setattr(fusion, "_RERANK_MIN_KEEP", 3)
+        patch_reranker({"good": 4.0, "ok": -1.5, "bad": -4.0})
+        chunks = [
+            {"chunk_id": "good", "content": "good", "score": 0.5},
+            {"chunk_id": "ok",   "content": "ok",   "score": 0.5},
+            {"chunk_id": "bad",  "content": "bad",  "score": 0.5},
+        ]
+        out = fusion._rerank_with_dedup("q", chunks, top_k=5)
+        ids = [c["chunk_id"] for c in out]
+        assert len(out) == 3
+        # 'good' on top by final_score; 'ok' and 'bad' supplemented.
+        assert ids[0] == "good"
+        assert set(ids) == {"good", "ok", "bad"}
+
+    def test_min_keep_capped_by_top_k(self, monkeypatch, patch_reranker):
+        # top_k=2 < MIN_KEEP=4 — final slice still trims to top_k.
+        monkeypatch.setattr(fusion, "_RERANK_MIN_KEEP", 4)
+        patch_reranker({"a": -2.0, "b": -2.5, "c": -3.0, "d": -3.5})
+        chunks = [
+            {"chunk_id": "a", "content": "a", "score": 0.5},
+            {"chunk_id": "b", "content": "b", "score": 0.5},
+            {"chunk_id": "c", "content": "c", "score": 0.5},
+            {"chunk_id": "d", "content": "d", "score": 0.5},
+        ]
+        out = fusion._rerank_with_dedup("q", chunks, top_k=2)
+        assert len(out) == 2
+
+    def test_min_keep_with_empty_dropped(self, monkeypatch, patch_reranker):
+        # All chunks pass the floor — no bypass needed; behaviour identical
+        # to MIN_KEEP=0.
+        monkeypatch.setattr(fusion, "_RERANK_MIN_KEEP", 5)
+        patch_reranker({"a": 2.0, "b": 1.0})
+        chunks = [
+            {"chunk_id": "a", "content": "a", "score": 0.5},
+            {"chunk_id": "b", "content": "b", "score": 0.5},
+        ]
+        out = fusion._rerank_with_dedup("q", chunks, top_k=5)
+        assert len(out) == 2
+        assert [c["chunk_id"] for c in out] == ["a", "b"]
 
 
 # ---------- rerank_per_gap sort key ----------------------------------------

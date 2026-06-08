@@ -39,10 +39,25 @@ class OllamaClient:
     def __init__(self, base_url: str = OLLAMA_BASE_URL):
         self._base_url = base_url.rstrip("/")
 
-    def generate(self, prompt: str, model: str, timeout: int = DEFAULT_TIMEOUT) -> str:
-        """Single-shot generation — waits for full response."""
+    def generate(
+        self,
+        prompt: str,
+        model: str,
+        timeout: int = DEFAULT_TIMEOUT,
+        format: str | None = None,
+        think: bool = True,
+    ) -> str:
+        """Single-shot generation — waits for full response.
+        `format='json'` ép Ollama trả output là JSON hợp lệ (dùng cho structured
+        output như intent classification). `think=False` tắt chain-of-thought
+        cho reasoning model để không phải chờ thinking phase trước khi có response."""
         url = f"{self._base_url}/api/generate"
-        payload = {"model": model, "prompt": prompt, "stream": False}
+        payload: dict = {"model": model, "prompt": prompt, "stream": False}
+        if format:
+            payload["format"] = format
+        # Reasoning model: phải gửi `think` rõ ràng (omit = mặc định ON)
+        if _supports_thinking(model):
+            payload["think"] = bool(think)
         response = requests.post(url, json=payload, timeout=timeout)
         response.raise_for_status()
         return response.json()["response"]

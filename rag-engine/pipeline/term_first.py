@@ -1,173 +1,224 @@
 """
-Term-First strategy — extract key entities/specs from query and resolve them
-against Neo4j Term nodes for authoritative full names and source specs.
+Term-First strategy — assemble the structured term dict that downstream
+retrieval components consume. There are two paths:
 
-Migrated and adapted from the parent project's hybrid_retriever.TermDefinitionResolver
-+ SemanticQueryAnalyzer._extract_potential_terms.
+1. extract_with_llm_terms() — preferred. Caller already has LLM-extracted
+   abbreviations / full_names / spec_refs (from IntentClassifier.classify_with_terms).
+   We hard-validate each candidate against the live TermIndex and drop
+   anything not in the KG (prevents Cypher hallucinations like
+   `MATCH (t:Term {abbreviation: 'TELL'})`).
+
+2. extract_fallback() — used when the LLM call failed (timeout, parse error).
+   Pure deterministic path: full_name regex match (longest-first) + simple
+   token-based abbreviation lookup against the same TermIndex. No hard-coded
+   lists — KG is the source of truth.
+
+Output shape (stable contract for downstream):
+    {
+        'network_functions': list[str],   # uppercase abbreviations validated against KG
+        'spec_refs':         list[str],   # ['TS 23.501', ...]
+        'abbreviations':     list[str],   # extra abbrevs not already in network_functions
+        'primary_term':      str,         # best single anchor for graph lookup
+        'resolved':          dict,        # {abbrev: {full_name, specs, matched_property}}
+    }
 """
 import re
-from typing import Optional
+
+from .term_index import TermIndex
 
 
-# Known 3GPP network functions (abbreviations) — used for prioritising the primary term
-NETWORK_FUNCTIONS = {
-    "AMF", "SMF", "UPF", "NRF", "AUSF", "UDM", "PCF", "NSSF", "AF",
-    "NEF", "SEPP", "SCP", "UDR", "CHF", "UDSF", "NWDAF", "LMF",
-}
-
-# Pattern to match TS/TR spec references like "TS 23.501", "TR 38.300"
+# Pattern for spec references like "TS 23.501" / "TR 38.300" — applied to
+# both LLM-emitted spec_refs and the fallback regex path. Case-insensitive.
 SPEC_PATTERN = re.compile(r"\b(TS|TR)\s*(\d{2}\.\d{3})\b", re.IGNORECASE)
 
-# Pattern for abbreviations as written in the query (preserves original casing)
-# Optional 0-2 lowercase suffix handles plurals: UEs → UE, APIs → API, NEFs → NEF
-ABBREV_PATTERN = re.compile(r"\b([A-Z][A-Z0-9]{1,5})(?:[a-z]{0,2})?\b")
-
-# Common English words that match the abbreviation regex but aren't 3GPP terms
-COMMON_WORDS = {
-    "IN", "IS", "ON", "AT", "TO", "OF", "A", "AN", "OR", "IT", "AS", "BY",
-    "NO", "SO", "ME", "BE", "DO", "IF", "UP", "WE",
-    "THE", "AND", "FOR", "ARE", "BUT", "NOT", "YOU", "ALL", "CAN", "HER",
-    "WAS", "ONE", "OUR", "OUT", "HAS", "HIS", "HOW", "ITS", "MAY", "NEW",
-    "NOW", "OLD", "SEE", "WAY", "WHO", "BOY", "DID", "GET", "HIM", "LET",
-    "PUT", "SAY", "SHE", "TOO", "USE",
-    "WHAT", "WHICH", "ABOUT", "BETWEEN", "WHERE", "WHEN", "WHY", "HOW",
-}
-
-# Generic network terms that aren't specific entities (downweighted vs NF abbreviations)
-GENERIC_TERMS = {"5G", "4G", "LTE", "NR", "3GPP", "5GS", "5GC", "3G", "2G"}
-
-
-def _extract_potential_terms(query: str) -> list[str]:
-    """Pull candidate abbreviations from the query, filtering out common English words."""
-    matches = ABBREV_PATTERN.findall(query)
-    seen: set[str] = set()
-    out: list[str] = []
-    for m in matches:
-        if m in COMMON_WORDS or m in GENERIC_TERMS:
-            continue
-        if m in seen:
-            continue
-        seen.add(m)
-        out.append(m)
-    return out
+# Tokeniser for the fallback path: pulls candidate identifiers from a query.
+# Lowercase tokens accepted — TermIndex normalises case on lookup. The 1-15
+# char range covers everything from 2-letter ("AF", "AI") to long compounds
+# in the KG without slipping in stop words too aggressively.
+TOKEN_PATTERN = re.compile(r"[A-Za-z][A-Za-z0-9-]{1,14}")
 
 
 class TermFirstStrategy:
-    """Pure-text term extraction. The optional resolver argument lets callers
-    enrich extraction results with KG-verified full names + source specs.
-    """
+    def __init__(self, index: TermIndex):
+        self._index = index
 
-    def __init__(self, resolver: Optional["TermResolver"] = None):
-        self._resolver = resolver
+    # Path 1: LLM extracted candidates → validate against KG → assemble.
+    def extract_with_llm_terms(
+        self,
+        query: str,
+        llm_abbreviations: list[str],
+        llm_full_names: list[str],
+        llm_spec_refs: list[str],
+    ) -> dict:
+        nfs: list[str] = []
+        resolved: dict[str, dict] = {}
 
-    def extract(self, query: str) -> dict:
-        """
-        Extract structured terms from query.
+        # Track full-name matches separately so primary_term can prefer them
+        # (a verbatim full-name mention in the query is the strongest signal).
+        full_name_hits: list[str] = []  # canonical abbreviations from full_name path
 
-        Returns:
-            {
-                'network_functions': [NF names found in NETWORK_FUNCTIONS],
-                'spec_refs':         ['TS 23.501', ...],
-                'abbreviations':     [other uppercase tokens, deduped],
-                'primary_term':      best single string for graph lookup,
-                'resolved':          {abbrev: {full_name, specs}} (only if resolver given),
-            }
-        """
-        # Network functions found verbatim in the query
-        nfs = [nf for nf in NETWORK_FUNCTIONS if re.search(rf"\b{nf}\b", query)]
-        # Spec references like "TS 23.501"
-        specs = [f"{m.group(1).upper()} {m.group(2)}" for m in SPEC_PATTERN.finditer(query)]
-        # Other uppercase abbreviations (excludes NFs to avoid duplicates)
-        candidates = [t for t in _extract_potential_terms(query) if t not in NETWORK_FUNCTIONS]
+        # Validate full_names first — they are the strongest signal and we
+        # want their abbreviation to win the primary_term tiebreaker.
+        for name in llm_full_names:
+            rec = self._index.lookup_full_name(name)
+            if rec is None:
+                continue
+            abbrev = rec["abbreviation"]
+            if abbrev not in resolved:
+                resolved[abbrev] = _resolved_entry(rec)
+                nfs.append(abbrev)
+            full_name_hits.append(abbrev)
 
-        # Primary term: NF > spec > abbreviation > first word
-        first_word = query.split()[0] if query.strip() else ""
-        primary = (
-            nfs[0] if nfs
-            else specs[0] if specs
-            else candidates[0] if candidates
-            else first_word
+        # Validate abbreviations — drop hallucinations (anything not in KG).
+        for abbrev in llm_abbreviations:
+            rec = self._index.lookup_abbrev(abbrev)
+            if rec is None:
+                continue
+            canon = rec["abbreviation"]
+            if canon not in resolved:
+                resolved[canon] = _resolved_entry(rec)
+                nfs.append(canon)
+
+        # spec_refs: re-validate format (LLM may emit "Ts23.501" or
+        # "TS-23.501" inconsistently). Canonicalise to "TS 23.501" / "TR 38.300".
+        spec_refs = _normalise_spec_refs(llm_spec_refs)
+
+        primary = _pick_primary(
+            full_name_hits=full_name_hits,
+            abbreviations=nfs,
+            spec_refs=spec_refs,
+            query=query,
         )
 
-        result: dict = {
-            "network_functions": nfs,
-            "spec_refs": specs,
-            "abbreviations": candidates,
-            "primary_term": primary,
-        }
+        return _assemble(
+            network_functions=nfs,
+            spec_refs=spec_refs,
+            abbreviations=[],  # no "extra" bucket needed when LLM is the source
+            primary=primary,
+            resolved=resolved,
+        )
 
-        # If a resolver is wired, look up authoritative definitions from the KG
-        if self._resolver is not None:
-            to_resolve = list(dict.fromkeys(nfs + candidates))  # dedup, preserve order
-            if to_resolve:
-                result["resolved"] = self._resolver.resolve(to_resolve)
-            else:
-                result["resolved"] = {}
+    # Path 2: deterministic fallback when the LLM is unavailable. Uses the
+    # same TermIndex so behaviour is consistent — just no semantic understanding.
+    def extract_fallback(self, query: str) -> dict:
+        nfs: list[str] = []
+        resolved: dict[str, dict] = {}
+        full_name_hits: list[str] = []
 
-        return result
-
-
-class TermResolver:
-    """
-    Resolve extracted abbreviations against Neo4j Term nodes for authoritative
-    full names and the specs they're defined in.
-
-    Migrated from hybrid_retriever.TermDefinitionResolver. The original used
-    `MATCH (t:Term {abbreviation: $abbrev})` — schema may store the property
-    under `name` instead, so we try a few fallbacks.
-    """
-
-    # Try these property names in order when matching Term nodes by their short form
-    _ABBREV_PROPS = ("abbreviation", "name", "term", "key")
-
-    def __init__(self, neo4j_driver):
-        self._driver = neo4j_driver
-
-    def resolve(self, entities: list[str]) -> dict[str, dict]:
-        """
-        Look up each entity in the KG.
-
-        Returns:
-            {
-                'SCP': {
-                    'full_name': 'Service Communication Proxy',
-                    'specs': ['TS 23.501', 'TS 29.500'],
-                    'matched_property': 'abbreviation',
-                },
-                ...
-            }
-            Entities not found are simply omitted from the result.
-        """
-        if not entities:
-            return {}
-
-        out: dict[str, dict] = {}
-        with self._driver.session() as session:
-            for entity in entities:
-                clean = entity.strip().upper()
-                hit = self._lookup(session, clean)
-                if hit:
-                    out[entity] = hit
-        return out
-
-    def _lookup(self, session, clean_entity: str) -> Optional[dict]:
-        # Try each candidate property name; first hit wins.
-        for prop in self._ABBREV_PROPS:
-            try:
-                cypher = (
-                    f"MATCH (t:Term {{ {prop}: $val }}) "
-                    "OPTIONAL MATCH (t)-[:DEFINED_IN]->(d:Document) "
-                    "RETURN coalesce(t.full_name, t.fullName, t.definition, t.name) AS full_name, "
-                    "       collect(DISTINCT d.spec_id) AS specs"
-                )
-                rec = session.run(cypher, val=clean_entity).single()
-                if rec and rec["full_name"]:
-                    return {
-                        "full_name": rec["full_name"],
-                        "specs": [s for s in (rec["specs"] or []) if s],
-                        "matched_property": prop,
-                    }
-            except Exception:
-                # Bad property name on this schema — try the next one
+        # Strongest signal first: full_name regex match (longest-first).
+        for abbrev, _ in self._index.find_full_name_matches(query):
+            rec = self._index.lookup_abbrev(abbrev)
+            if rec is None:
                 continue
-        return None
+            if abbrev not in resolved:
+                resolved[abbrev] = _resolved_entry(rec)
+                nfs.append(abbrev)
+            full_name_hits.append(abbrev)
+
+        # Then per-token abbreviation lookup. TermIndex.lookup_abbrev uppercases
+        # internally — accept tokens in any case. KG-not-found tokens (common
+        # English words, "tell", "what", ...) silently get None.
+        for tok in TOKEN_PATTERN.findall(query):
+            rec = self._index.lookup_abbrev(tok)
+            if rec is None:
+                continue
+            canon = rec["abbreviation"]
+            if canon not in resolved:
+                resolved[canon] = _resolved_entry(rec)
+                nfs.append(canon)
+
+        spec_refs = _scan_spec_refs(query)
+
+        primary = _pick_primary(
+            full_name_hits=full_name_hits,
+            abbreviations=nfs,
+            spec_refs=spec_refs,
+            query=query,
+        )
+
+        return _assemble(
+            network_functions=nfs,
+            spec_refs=spec_refs,
+            abbreviations=[],
+            primary=primary,
+            resolved=resolved,
+        )
+
+
+# ---- helpers --------------------------------------------------------------
+
+
+# Build the {full_name, specs, matched_property} record consumed by
+# cypher_generator + adaptive_hop. Mirrors the legacy TermResolver shape.
+def _resolved_entry(rec: dict) -> dict:
+    return {
+        "full_name": rec.get("full_name"),
+        "specs": list(rec.get("source_specs") or []),
+        "matched_property": "abbreviation",
+    }
+
+
+# Pick a single anchor for graph lookup. Order:
+# 1. First full_name hit (strongest — verbatim mention).
+# 2. First abbreviation hit (validated against KG).
+# 3. First spec ref.
+# 4. First token in the query (degenerate fallback — preserved from legacy
+#    behaviour so empty extractions still return *something*).
+def _pick_primary(
+    full_name_hits: list[str],
+    abbreviations: list[str],
+    spec_refs: list[str],
+    query: str,
+) -> str:
+    if full_name_hits:
+        return full_name_hits[0]
+    if abbreviations:
+        return abbreviations[0]
+    if spec_refs:
+        return spec_refs[0]
+    return query.split()[0] if query.strip() else ""
+
+
+# Normalise LLM-emitted spec refs to canonical "TS XX.XXX" / "TR XX.XXX".
+def _normalise_spec_refs(refs: list[str]) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for ref in refs:
+        m = SPEC_PATTERN.search(ref or "")
+        if not m:
+            continue
+        canon = f"{m.group(1).upper()} {m.group(2)}"
+        if canon not in seen:
+            seen.add(canon)
+            out.append(canon)
+    return out
+
+
+# Scan an arbitrary string for "TS 23.501" / "TR 38.300" references.
+def _scan_spec_refs(text: str) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for m in SPEC_PATTERN.finditer(text):
+        canon = f"{m.group(1).upper()} {m.group(2)}"
+        if canon not in seen:
+            seen.add(canon)
+            out.append(canon)
+    return out
+
+
+# Final dict assembly — keeps the contract stable so orchestrator/cypher_generator
+# don't need to know which extraction path produced the result.
+def _assemble(
+    network_functions: list[str],
+    spec_refs: list[str],
+    abbreviations: list[str],
+    primary: str,
+    resolved: dict,
+) -> dict:
+    return {
+        "network_functions": network_functions,
+        "spec_refs": spec_refs,
+        "abbreviations": abbreviations,
+        "primary_term": primary,
+        "resolved": resolved,
+    }

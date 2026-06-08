@@ -12,7 +12,7 @@ finish early; the system enforces a stop when budgets are exceeded.
 import time
 from collections.abc import Iterator
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from neo4j import GraphDatabase
 
@@ -27,6 +27,12 @@ from retrieval.adaptive_hop_prompts import (
 )
 from retrieval.cypher_generator import CypherValidationError, LLMCypherGenerator
 from retrieval.vector_search import VectorSearcher
+
+if TYPE_CHECKING:
+    # Avoid circular import: adaptive_hop is imported via retrieval/__init__,
+    # which is imported by pipeline/orchestrator.py — pipeline.term_index is
+    # safe to import lazily but TYPE_CHECKING keeps the static type ref.
+    from pipeline.term_index import TermIndex
 
 
 # Max chars to keep per chunk content (avoid blowing the planner prompt).
@@ -115,6 +121,7 @@ class AdaptiveHopSearcher:
         planner_model: str,
         vector_searcher: VectorSearcher,
         cypher_generator: LLMCypherGenerator,
+        term_index: Optional["TermIndex"] = None,
         max_iter: int = 4,
         budget_ms: int = 8000,
         max_chunks: int = 30,
@@ -124,6 +131,10 @@ class AdaptiveHopSearcher:
         self._planner_model = planner_model
         self._vector = vector_searcher
         self._cypher_gen = cypher_generator
+        # In-memory Term snapshot. Replaces per-call Neo4j round-trips for
+        # `expand_term` and `kg_search_terms` tools. Optional for backward
+        # compat with tests that don't need term lookups.
+        self._term_index = term_index
         self._max_iter = max_iter
         self._budget_ms = budget_ms
         self._max_chunks = max_chunks
@@ -534,18 +545,17 @@ class AdaptiveHopSearcher:
                     return (lines, f"{len(lines)} titles for {keyword!r}")
 
                 if tool == "kg_search_terms":
-                    cypher = (
-                        "MATCH (t:Term) "
-                        "WHERE toLower(t.full_name) CONTAINS toLower($kw) "
-                        "   OR toLower(t.abbreviation) CONTAINS toLower($kw) "
-                        "RETURN t.abbreviation AS abbr, t.full_name AS full_name, "
-                        "       t.primary_spec AS primary_spec "
-                        "LIMIT $lim"
-                    )
-                    rows = session.run(cypher, kw=keyword, lim=limit).data()
+                    # In-memory substring search (replaces live Cypher). Uses
+                    # the same index loaded once at startup, so this is O(N)
+                    # over ~31k records but no network round-trip.
+                    if self._term_index is None:
+                        return ([], "term_index_unavailable")
+                    rows = self._term_index.search(keyword, limit=limit)
                     lines = [
-                        f"{r['abbr']} = {r['full_name']}" + (f" (primary: {r['primary_spec']})" if r.get("primary_spec") else "")
-                        for r in rows if r.get("abbr") or r.get("full_name")
+                        f"{r['abbreviation']} = {r['full_name']}"
+                        + (f" (primary: {r['primary_spec']})" if r.get("primary_spec") else "")
+                        for r in rows
+                        if r.get("abbreviation") or r.get("full_name")
                     ]
                     return (lines, f"{len(lines)} terms for {keyword!r}")
 
@@ -692,14 +702,9 @@ class AdaptiveHopSearcher:
         if not abbr:
             raise ValueError("missing 'abbreviation' arg")
 
-        cypher = (
-            "MATCH (t:Term {abbreviation: $abbr}) "
-            "RETURN t.abbreviation AS abbreviation, t.full_name AS full_name, "
-            "       t.source_specs AS source_specs, t.primary_spec AS primary_spec "
-            "LIMIT 1"
-        )
-        with self._driver.session() as session:
-            rec = session.run(cypher, abbr=abbr).single()
+        # In-memory lookup (replaces live Cypher). Index is loaded once at
+        # startup, so this is O(1).
+        rec = self._term_index.lookup_abbrev(abbr) if self._term_index else None
 
         if not rec:
             return (
@@ -719,8 +724,8 @@ class AdaptiveHopSearcher:
         info = {
             "abbreviation": rec["abbreviation"],
             "full_name": rec["full_name"],
-            "source_specs": list(rec["source_specs"] or []),
-            "primary_spec": rec["primary_spec"],
+            "source_specs": list(rec.get("source_specs") or []),
+            "primary_spec": rec.get("primary_spec"),
         }
         # Merge into resolved_terms so future planner prompts see it.
         state.resolved_terms[info["abbreviation"]] = {

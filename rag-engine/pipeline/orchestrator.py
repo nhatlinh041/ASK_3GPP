@@ -6,8 +6,36 @@ Two modes (selected per request):
   - 'react_agent': intent → ADAPTIVE ReAct (LLM picks vector/cypher/expand_term/
                             inspect_chunk/finish each iter) → rerank → answer
 """
+import asyncio
 import os
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
+from typing import Any
+
+
+# Wrap sync iterator (Ollama stream, graph search) thành async để event loop được
+# free giữa mỗi `next()` — uvicorn cần tick event loop để flush SSE bytes ra socket.
+# Không dùng cái này: orchestrator block ~15-30s và TOÀN BỘ stream chỉ tới client
+# 1 lần ở cuối (uvicorn không flush được khi event loop bận).
+#
+# Quan trọng: KHÔNG raise StopIteration qua asyncio Future (Python cấm —
+# `TypeError: StopIteration interacts badly with generators`). Dùng sentinel
+# trả từ helper sync để tránh.
+_ITER_DONE = object()
+
+
+def _next_or_done(it: Iterator[Any]) -> Any:
+    try:
+        return next(it)
+    except StopIteration:
+        return _ITER_DONE
+
+
+async def _async_iter(sync_iter: Iterator[Any]) -> AsyncIterator[Any]:
+    while True:
+        ev = await asyncio.to_thread(_next_or_done, sync_iter)
+        if ev is _ITER_DONE:
+            break
+        yield ev
 
 from neo4j import GraphDatabase
 
@@ -22,7 +50,8 @@ from retrieval import (
 )
 from llm import OllamaClient, build_prompt
 from pipeline.intent_classifier import IntentClassifier
-from pipeline.term_first import TermFirstStrategy, TermResolver
+from pipeline.term_first import TermFirstStrategy
+from pipeline.term_index import build_term_index
 
 NEO4J_URI = os.getenv("NEO4J_URI", "neo4j://localhost:7687")
 NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
@@ -75,20 +104,24 @@ def _chunks_to_preview(
 
 class RAGOrchestrator:
     def __init__(self):
-        # Single shared Neo4j driver — used by the term resolver, graph searcher,
-        # and schema introspector
+        # Single shared Neo4j driver — used by the TermIndex builder, graph searcher,
+        # and schema introspector.
         self._driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
 
-        self._intent_clf = IntentClassifier()
-        # Term-First with KG-backed resolver for authoritative full names + spec sources
-        self._term_resolver = TermResolver(self._driver)
-        self._term_first = TermFirstStrategy(resolver=self._term_resolver)
+        # In-memory snapshot of all Term nodes (~31k). Replaces hard-coded
+        # NETWORK_FUNCTIONS + per-query Neo4j round-trips. Built once here,
+        # shared with TermFirstStrategy and AdaptiveHopSearcher.
+        self._term_index = build_term_index(self._driver)
+        self._term_first = TermFirstStrategy(index=self._term_index)
 
         # Vector searcher: used as a deterministic step in fixed mode, AND as a tool
         # the planner can call in react_agent mode.
         self._vector = VectorSearcher(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
 
         self._llm = OllamaClient()
+        # LLM-first intent classifier (regex fallback). Dùng cùng OllamaClient
+        # để Ollama giữ model warm; classify gọi với format=json + think=False
+        self._intent_clf = IntentClassifier(self._llm)
         self._cypher_gen = LLMCypherGenerator(self._llm, model=CYPHER_MODEL)
         # Graph search (LLM Cypher single-shot) — fixed mode only.
         self._graph = GraphSearcher(
@@ -106,6 +139,7 @@ class RAGOrchestrator:
             planner_model=ADAPTIVE_HOP_PLANNER_MODEL,
             vector_searcher=self._vector,
             cypher_generator=self._cypher_gen,
+            term_index=self._term_index,
             max_iter=ADAPTIVE_HOP_MAX_ITER,
             budget_ms=ADAPTIVE_HOP_BUDGET_MS,
         )
@@ -118,10 +152,26 @@ class RAGOrchestrator:
         Each non-token stage emits {input, output, ...flat fields} so the UI
         can show input/output of every tool when the user clicks Details.
         """
-        # Step 1: intent + term extraction (with KG-backed term resolution).
-        # Cheap, deterministic — feeds the planner with seeds + authoritative term info.
-        intent = self._intent_clf.classify(question)
-        terms = self._term_first.extract(question)
+        # Step 1: combined intent + term extraction in ONE LLM call (format=json,
+        # think=False). LLM returns intent + abbreviations + full_names + spec_refs;
+        # TermFirstStrategy then HARD-VALIDATES each candidate against the live
+        # KG TermIndex so hallucinations (e.g. "TELL") never reach the Cypher gen.
+        # If the LLM fails (timeout, bad JSON), fall back to (regex intent +
+        # deterministic TermIndex extraction) — still KG-backed, no hard-coded list.
+        intent_terms = await asyncio.to_thread(
+            self._intent_clf.classify_with_terms, question, model
+        )
+        if intent_terms is not None:
+            intent = intent_terms["intent"]
+            terms = self._term_first.extract_with_llm_terms(
+                question,
+                intent_terms["abbreviations"],
+                intent_terms["full_names"],
+                intent_terms["spec_refs"],
+            )
+        else:
+            intent = await asyncio.to_thread(self._intent_clf.classify, question, model)
+            terms = self._term_first.extract_fallback(question)
         resolved = terms.get("resolved", {})
         yield {"stage": "intent", "data": {
             "input": {"question": question},
@@ -140,7 +190,7 @@ class RAGOrchestrator:
             candidates: list[dict] = []
             # Adaptive ReAct: planner LLM picks each tool (vector_search / cypher_query
             # / expand_term / inspect_chunk / finish) and decides when to stop.
-            for ev in self._adaptive_hop.search_streaming(
+            adaptive_iter = self._adaptive_hop.search_streaming(
                 question=question,
                 intent=intent,
                 seeds=seeds,
@@ -148,7 +198,8 @@ class RAGOrchestrator:
                 prior_chunks=None,
                 think=think,
                 model=model,
-            ):
+            )
+            async for ev in _async_iter(adaptive_iter):
                 if ev.get("stage") == "hop_research_done":
                     research_gaps = (ev.get("data") or {}).get("gaps") or []
                 if ev.get("stage") == "hop_finish":
@@ -167,7 +218,9 @@ class RAGOrchestrator:
         else:
             # Fixed pipeline: deterministic vector + LLM-Cypher graph search,
             # merged via Reciprocal Rank Fusion. No adaptive loop.
-            vec_results = self._vector.search(question, top_k=TOP_K_VECTOR)
+            # Vector search (sentence-transformers encode + Neo4j query) là sync blocking
+            # → to_thread để event loop tick được giữa intent event và retrieval_vector event
+            vec_results = await asyncio.to_thread(self._vector.search, question, top_k=TOP_K_VECTOR)
             yield {"stage": "retrieval_vector", "data": {
                 "input": {"query": question, "top_k": TOP_K_VECTOR},
                 "output": {
@@ -186,7 +239,10 @@ class RAGOrchestrator:
                 for v in vec_results[:3]
             ]
             graph_chunks: list[dict] = []
-            for ev in self._graph.search_streaming(
+            # Sync iterator (Ollama iter_lines) → wrap _async_iter để event loop free
+            # giữa mỗi token. Không có wrap này thì cypher token stream "im lặng" cho
+            # đến khi cả graph search xong rồi mới flush hết.
+            graph_iter = self._graph.search_streaming(
                 question,
                 intent=intent,
                 term=terms["primary_term"],
@@ -198,7 +254,8 @@ class RAGOrchestrator:
                 # stage so Ollama keeps one set of weights resident the whole
                 # query. Avoids 15-30s load/unload thrash per question.
                 model=model,
-            ):
+            )
+            async for ev in _async_iter(graph_iter):
                 if ev.get("stage") == "retrieval_graph":
                     data = ev.get("data") or {}
                     graph_chunks = data.pop("_chunks", []) or []
@@ -214,15 +271,22 @@ class RAGOrchestrator:
         # so each sub-question gets its own slot — this fixes the compound-query
         # bias where chunks that vaguely match many topics outrank chunks that
         # squarely answer one specific gap.
+        # Rerank dùng cross-encoder (sentence-transformers, sync) — to_thread để
+        # event loop tick được trước khi yield rerank event
         if mode == "react_agent" and len(research_gaps) > 1:
-            reranked = rerank_per_gap(
+            reranked = await asyncio.to_thread(
+                rerank_per_gap,
                 question=question,
                 gaps=research_gaps,
                 chunks=candidates,
                 total_top_k=TOP_K_FINAL,
+                resolved_terms=resolved,
             )
         else:
-            reranked = rerank(question, candidates, top_k=TOP_K_FINAL)
+            reranked = await asyncio.to_thread(
+                rerank, question, candidates, top_k=TOP_K_FINAL,
+                resolved_terms=resolved,
+            )
         yield {"stage": "rerank", "data": {
             "input": {
                 "query": question,
@@ -254,8 +318,11 @@ class RAGOrchestrator:
         # Stream thinking + response tokens. Reasoning models (deepseek-r1, qwen3)
         # emit thinking first when think=True; otherwise (or for non-reasoning models)
         # we go straight to the response phase.
+        # Sync iter_lines từ Ollama → wrap _async_iter để mỗi token được flush
+        # ngay (không phải đợi cả answer xong mới thấy gì)
         answer_tokens: list[str] = []
-        for ev in self._llm.generate_stream_full(prompt, model=model, think=think):
+        answer_iter = self._llm.generate_stream_full(prompt, model=model, think=think)
+        async for ev in _async_iter(answer_iter):
             if ev["kind"] == "thinking":
                 yield {"stage": "thinking", "data": ev["token"]}
             else:
